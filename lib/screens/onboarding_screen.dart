@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'lobby_screen.dart';
+import '../services/guest_service.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -65,14 +66,16 @@ class OnboardingScreen extends StatelessWidget {
                     width: 350,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LobbyScreen(),
-                          ),
-                        );
-                      },
+                      onPressed: () async {
+  // Create guest session
+  final guestUser = await GuestService.getGuestUser();
+  print('Guest created: ${guestUser['name']} (${guestUser['id']})');
+  
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const LobbyScreen()),
+  );
+},
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4F46E5),
                         foregroundColor: Colors.white,

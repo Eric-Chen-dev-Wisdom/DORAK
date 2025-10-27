@@ -1,8 +1,30 @@
 import 'package:flutter/material.dart';
 import 'gameplay_screen.dart';
+import '../services/guest_service.dart';
 
-class LobbyScreen extends StatelessWidget {
+class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
+
+  @override
+  State<LobbyScreen> createState() => _LobbyScreenState();
+}
+
+class _LobbyScreenState extends State<LobbyScreen> {
+  String guestName = 'Loading...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGuestName();
+  }
+
+  Future<void> _loadGuestName() async {
+    final name = await GuestService.getGuestName();
+    setState(() {
+      guestName = name;
+    });
+  }
+
   Widget _buildPlayer(String name, bool isPresent) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -19,9 +41,7 @@ class LobbyScreen extends StatelessWidget {
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: isPresent
-                  ? const Color(0xFF22C55E)
-                  : const Color(0xFF9CA3AF),
+              color: isPresent ? const Color(0xFF22C55E) : const Color(0xFF9CA3AF),
               shape: BoxShape.circle,
             ),
           ),
@@ -30,9 +50,7 @@ class LobbyScreen extends StatelessWidget {
             child: Text(
               name,
               style: TextStyle(
-                color: isPresent
-                    ? const Color(0xFF166534)
-                    : const Color(0xFF6B7280),
+                color: isPresent ? const Color(0xFF166534) : const Color(0xFF6B7280),
                 fontWeight: isPresent ? FontWeight.w500 : FontWeight.normal,
               ),
             ),
@@ -53,9 +71,7 @@ class LobbyScreen extends StatelessWidget {
           color: isSelected ? const Color(0xFF4F46E5) : Colors.white,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected
-                ? const Color(0xFF4F46E5)
-                : const Color(0xFFE2E8F0),
+            color: isSelected ? const Color(0xFF4F46E5) : const Color(0xFFE2E8F0),
           ),
           boxShadow: [
             BoxShadow(
@@ -74,13 +90,15 @@ class LobbyScreen extends StatelessWidget {
                 color: isSelected ? Colors.white : Colors.transparent,
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(
-                  color: isSelected
-                      ? const Color(0xFF4F46E5)
-                      : const Color(0xFFCBD5E0),
+                  color: isSelected ? const Color(0xFF4F46E5) : const Color(0xFFCBD5E0),
                 ),
               ),
               child: isSelected
-                  ? const Icon(Icons.check, size: 14, color: Color(0xFF4F46E5))
+                  ? const Icon(
+                      Icons.check,
+                      size: 14,
+                      color: Color(0xFF4F46E5),
+                    )
                   : null,
             ),
             const SizedBox(width: 12),
@@ -116,7 +134,33 @@ class LobbyScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // ROOM CODE SECTION (your existing code)
+            // GUEST INFO BANNER
+            if (GuestService.isGuest())
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0F2FE),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF0EA5E9)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.person, size: 16, color: Color(0xFF0369A1)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Playing as: $guestName', // Now uses the loaded name
+                      style: const TextStyle(
+                        color: Color(0xFF0369A1),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // ROOM CODE SECTION
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -131,7 +175,10 @@ class LobbyScreen extends StatelessWidget {
                   const SizedBox(width: 8),
                   const Text(
                     'Room Code: ',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   Text(
                     'D0R4K7',
@@ -153,9 +200,11 @@ class LobbyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // TEAMS SECTION (your existing code)
+            // Rest of your existing lobby code continues here...
+            // TEAMS SECTION
             Row(
               children: [
+                // TEAM A
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -186,6 +235,8 @@ class LobbyScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 16),
+                
+                // TEAM B
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -219,7 +270,7 @@ class LobbyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // CATEGORY SELECTION SECTION (your existing code)
+            // CATEGORY SELECTION SECTION
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -242,9 +293,13 @@ class LobbyScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   const Text(
                     'Choose 3 to 8 categories for your game:',
-                    style: TextStyle(color: Color(0xFF718096)),
+                    style: TextStyle(
+                      color: Color(0xFF718096),
+                    ),
                   ),
                   const SizedBox(height: 16),
+                  
+                  // CATEGORY GRID
                   GridView.count(
                     crossAxisCount: 2,
                     shrinkWrap: true,
@@ -266,7 +321,8 @@ class LobbyScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-                         // TEST BUTTONS (Remove these later)
+
+            // TEST BUTTONS (Remove these later)
             const SizedBox(height: 16),
             const Text(
               'Test Screens:',
@@ -314,6 +370,7 @@ class LobbyScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
+
             // START GAME BUTTON
             SizedBox(
               width: double.infinity,
@@ -324,7 +381,7 @@ class LobbyScreen extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const GameplayScreen(
-                        challengeType: 'trivia', // We'll randomize this later
+                        challengeType: 'trivia',
                         category: 'Trivia',
                       ),
                     ),
@@ -339,7 +396,10 @@ class LobbyScreen extends StatelessWidget {
                 ),
                 child: const Text(
                   'START GAME',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
