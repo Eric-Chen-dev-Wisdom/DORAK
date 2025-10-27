@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'gameplay_screen.dart';
 import '../services/guest_service.dart';
+import '../services/auth_state.dart';
+import 'onboarding_screen.dart'; // Add this import
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -10,49 +12,27 @@ class LobbyScreen extends StatefulWidget {
 }
 
 class _LobbyScreenState extends State<LobbyScreen> {
-  String guestName = 'Loading...';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadGuestName();
-  }
-
-  Future<void> _loadGuestName() async {
-    final name = await GuestService.getGuestName();
-    setState(() {
-      guestName = name;
-    });
-  }
-
+  // Player widget helper
   Widget _buildPlayer(String name, bool isPresent) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: isPresent ? const Color(0xFFDCFCE7) : const Color(0xFFF3F4F6),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isPresent ? const Color(0xFF22C55E) : const Color(0xFFD1D5DB),
-        ),
+        color: isPresent ? const Color(0xFFDBEAFE) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: isPresent ? const Color(0xFF22C55E) : const Color(0xFF9CA3AF),
-              shape: BoxShape.circle,
-            ),
+          Icon(
+            isPresent ? Icons.person : Icons.person_outline,
+            size: 16,
+            color: isPresent ? const Color(0xFF1E40AF) : const Color(0xFF64748B),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              name,
-              style: TextStyle(
-                color: isPresent ? const Color(0xFF166534) : const Color(0xFF6B7280),
-                fontWeight: isPresent ? FontWeight.w500 : FontWeight.normal,
-              ),
+          Text(
+            name,
+            style: TextStyle(
+              color: isPresent ? const Color(0xFF1E40AF) : const Color(0xFF64748B),
+              fontWeight: isPresent ? FontWeight.w500 : FontWeight.normal,
             ),
           ),
         ],
@@ -60,6 +40,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
+  // Category item widget helper
   Widget _buildCategoryItem(String category, bool isSelected) {
     return GestureDetector(
       onTap: () {
@@ -118,14 +99,27 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Lobby'),
+        title: const Text('Game Lobby'),
         backgroundColor: const Color(0xFF4F46E5),
+        foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: () {
               // Room info dialog
+              print('Room info pressed');
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              AuthState.logout();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+              );
             },
           ),
         ],
@@ -135,7 +129,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
         child: Column(
           children: [
             // GUEST INFO BANNER
-            if (GuestService.isGuest())
+            if (AuthState.isGuest)
               Container(
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 16),
@@ -150,7 +144,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     const Icon(Icons.person, size: 16, color: Color(0xFF0369A1)),
                     const SizedBox(width: 8),
                     Text(
-                      'Playing as: $guestName', // Now uses the loaded name
+                      'Playing as: ${AuthState.userDisplayName}',
                       style: const TextStyle(
                         color: Color(0xFF0369A1),
                         fontWeight: FontWeight.w500,
@@ -200,7 +194,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Rest of your existing lobby code continues here...
             // TEAMS SECTION
             Row(
               children: [

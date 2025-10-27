@@ -1,9 +1,35 @@
 import 'package:flutter/material.dart';
 import 'lobby_screen.dart';
 import '../services/guest_service.dart';
+import '../services/auth_service.dart';
+import '../services/auth_state.dart';
+import 'signup_screen.dart';
+import 'login_screen.dart'; 
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
+
+  void _showLoadingDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 20),
+                Text(message),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,25 +83,54 @@ class OnboardingScreen extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-            // BUTTON SECTION
-            const Spacer(), // This pushes buttons to the bottom
+
+            const Spacer(),
+
+            // CENTERED BUTTON SECTION
             Center(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // PLAY AS GUEST BUTTON
                   SizedBox(
                     width: 350,
                     height: 56,
                     child: ElevatedButton(
                       onPressed: () async {
-  // Create guest session
-  final guestUser = await GuestService.getGuestUser();
-  print('Guest created: ${guestUser['name']} (${guestUser['id']})');
-  
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const LobbyScreen()),
-  );
-},
+                        // Show loading
+                        _showLoadingDialog(
+                          context,
+                          "Creating guest session...",
+                        );
+
+                        try {
+                          // Use AuthService for guest login
+                          final success = await AuthService.guestLogin();
+
+                          Navigator.pop(context); // Hide loading
+
+                          if (success) {
+                            // Update auth state
+                            AuthState.guestLogin();
+
+                            // Go to lobby
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const LobbyScreen(),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          Navigator.pop(context); // Hide loading
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Guest login failed: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4F46E5),
                         foregroundColor: Colors.white,
@@ -93,18 +148,57 @@ class OnboardingScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // CREATE ACCOUNT BUTTON
                   SizedBox(
                     width: 350,
-                    height: 48,
-                    child: TextButton(
+                    height: 50,
+                    child: OutlinedButton(
                       onPressed: () {
-                        print('Create account pressed');
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SignUpScreen(),
+                          ),
+                        );
                       },
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: const BorderSide(color: Color(0xFF4F46E5)),
+                      ),
                       child: const Text(
                         'CREATE ACCOUNT',
                         style: TextStyle(
                           fontSize: 16,
                           color: Color(0xFF4F46E5),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // SIGN IN BUTTON - FIXED!
+                  SizedBox(
+                    width: 350,
+                    height: 50,
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ), // ← CHANGED TO LoginScreen
+                        );
+                      },
+                      child: const Text(
+                        'SIGN IN',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Color(0xFF4A5568),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
