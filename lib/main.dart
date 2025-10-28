@@ -4,6 +4,8 @@ import 'services/navigation_service.dart';
 import 'utils/routes.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/lobby_screen.dart';
+import 'models/user_model.dart';
 
 void main() {
   runApp(const DorakApp());
@@ -24,12 +26,17 @@ class DorakApp extends StatelessWidget {
         AppRoutes.login: (context) => const LoginScreen(),
       },
       onGenerateRoute: (settings) {
-        // We'll add more routes as we create screens
+        // Handle routes with arguments
         switch (settings.name) {
           case AppRoutes.home:
             return MaterialPageRoute(builder: (_) => const HomeScreen());
           case AppRoutes.login:
             return MaterialPageRoute(builder: (_) => const LoginScreen());
+          case AppRoutes.lobby:
+            final UserModel user = settings.arguments as UserModel;
+            return MaterialPageRoute(
+              builder: (_) => LobbyScreen(user: user),
+            );
           default:
             return MaterialPageRoute(builder: (_) => const HomeScreen());
         }

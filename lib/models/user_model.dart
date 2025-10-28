@@ -1,4 +1,4 @@
-class User {
+class UserModel {
   final String id;
   final String displayName;
   final String email;
@@ -6,7 +6,7 @@ class User {
   final UserType type;
   final DateTime createdAt;
 
-  User({
+  UserModel({
     required this.id,
     required this.displayName,
     required this.email,
@@ -15,8 +15,8 @@ class User {
     required this.createdAt,
   });
 
-  factory User.guest(String name) {
-    return User(
+  factory UserModel.guest(String name) {
+    return UserModel(
       id: 'guest_${DateTime.now().millisecondsSinceEpoch}',
       displayName: name,
       email: '',
@@ -36,14 +36,14 @@ class User {
     };
   }
 
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
       id: json['id'],
       displayName: json['displayName'],
       email: json['email'],
       photoUrl: json['photoUrl'],
       type: UserType.values.firstWhere(
-        (e) => e.toString() == json['type'],
+        (e) => e.toString() == 'UserType.${json['type']}',
         orElse: () => UserType.guest,
       ),
       createdAt: DateTime.parse(json['createdAt']),

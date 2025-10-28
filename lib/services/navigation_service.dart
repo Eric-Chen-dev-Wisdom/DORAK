@@ -18,7 +18,7 @@ class NavigationService {
     );
   }
 
-  static void goBack() {
-    return navigatorKey.currentState!.pop();
+  static void goBack([dynamic result]) {
+    return navigatorKey.currentState!.pop(result);
   }
 }

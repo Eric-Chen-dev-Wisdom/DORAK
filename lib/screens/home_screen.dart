@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 import '../services/navigation_service.dart';
 import '../utils/routes.dart';
+import '../services/auth_service.dart'; 
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -28,24 +29,65 @@ class HomeScreen extends StatelessWidget {
                 child: const Icon(Icons.casino, color: Colors.white, size: 50),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'دورك',
-                style: TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                  color: AppConstants.primaryBlack,
-                ),
+              
+              // Updated Logo Section
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Arabic text with exclamation mark on the left
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '!',
+                        style: TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: AppConstants.primaryBlack,
+                        ),
+                      ),
+                      Text(
+                        'دورك',
+                        style: TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: AppConstants.primaryBlack,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  // English text positioned as shadow below
+                  Positioned(
+                    bottom: -30,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '!',
+                          style: TextStyle(
+                            fontSize: 24,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        Text(
+                          'Dorak',
+                          style: TextStyle(
+                            fontSize: 24,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
+              
+              const SizedBox(height: 50), // Increased spacing for the shadow text
+              
+              // Tagline
               const Text(
-                'Dorak',
-                style: TextStyle(
-                  fontSize: 24,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'A game that brings together family and friends',
+                'لِصةِ للطائفةِ والأكصدِفَاءِ\nA game that brings together family and friends',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -78,10 +120,14 @@ class HomeScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () {
-                        // Guest login - we'll implement this next
-                        NavigationService.navigateTo(AppRoutes.lobby);
-                      },
+                      onPressed: () async {
+  final authService = AuthService();
+  final user = await authService.guestLogin('Guest Player');
+  NavigationService.navigateTo(
+    AppRoutes.lobby,
+    arguments: user,
+  );
+},
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppConstants.primaryRed,
                         side: const BorderSide(color: Color(0xFFCE1126)),

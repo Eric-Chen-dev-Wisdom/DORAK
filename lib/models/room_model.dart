@@ -1,12 +1,11 @@
 import 'user_model.dart';
 import 'category_model.dart';
 
-
 class GameRoom {
   final String code;
   final String hostId;
-  final List<User> teamA;
-  final List<User> teamB;
+  final List<UserModel> teamA;
+  final List<UserModel> teamB;
   final List<Category> selectedCategories;
   final GameState state;
   final DateTime createdAt;

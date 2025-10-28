@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 import '../services/navigation_service.dart';
 import '../utils/routes.dart';
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -54,10 +55,17 @@ class LoginScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // Google Sign In - we'll implement later
-                        NavigationService.navigateTo(AppRoutes.lobby);
-                      },
+                      onPressed: () async {
+  final authService = AuthService();
+  final user = await authService.signInWithGoogle();
+  if (user != null) {
+    NavigationService.navigateTo(
+      AppRoutes.lobby,
+      arguments: user, // Pass the user to lobby
+    );
+  }
+},
+
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.black,
@@ -80,10 +88,16 @@ class LoginScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // Apple Sign In - we'll implement later
-                        NavigationService.navigateTo(AppRoutes.lobby);
-                      },
+                      onPressed: () async {
+  final authService = AuthService();
+  final user = await authService.signInWithApple();
+  if (user != null) {
+    NavigationService.navigateTo(
+      AppRoutes.lobby,
+      arguments: user, // Pass the user to lobby
+    );
+  }
+},
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
                         foregroundColor: Colors.white,
@@ -106,10 +120,14 @@ class LoginScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () {
-                        // Guest login
-                        NavigationService.navigateTo(AppRoutes.lobby);
-                      },
+                     onPressed: () async {
+  final authService = AuthService();
+  final user = await authService.guestLogin('Guest Player');
+  NavigationService.navigateTo(
+    AppRoutes.lobby,
+    arguments: user, // Pass the user to lobby
+  );
+},
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppConstants.primaryRed,
                         side: const BorderSide(color: Color(0xFFCE1126)),
