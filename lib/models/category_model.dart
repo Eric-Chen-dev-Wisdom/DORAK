@@ -22,6 +22,23 @@ class Category {
       'challenges': challenges.map((challenge) => challenge.toJson()).toList(),
     };
   }
+
+  // Add this missing fromJson factory method
+  factory Category.fromJson(Map<String, dynamic> json) {
+    return Category(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      description: json['description'] ?? '',
+      type: CategoryType.values.firstWhere(
+        (e) => e.toString() == json['type'],
+        orElse: () => CategoryType.trivia,
+      ),
+      challenges: (json['challenges'] as List?)
+              ?.map((challengeJson) => Challenge.fromJson(challengeJson))
+              .toList() ??
+          [],
+    );
+  }
 }
 
 enum CategoryType {
@@ -57,6 +74,21 @@ class Challenge {
       'mediaUrl': mediaUrl,
       'difficulty': difficulty.toString(),
     };
+  }
+
+  // Add this missing fromJson factory method
+  factory Challenge.fromJson(Map<String, dynamic> json) {
+    return Challenge(
+      id: json['id'] ?? '',
+      question: json['question'] ?? '',
+      options: (json['options'] as List?)?.cast<String>(),
+      correctAnswer: json['correctAnswer'],
+      mediaUrl: json['mediaUrl'],
+      difficulty: ChallengeDifficulty.values.firstWhere(
+        (e) => e.toString() == json['difficulty'],
+        orElse: () => ChallengeDifficulty.easy,
+      ),
+    );
   }
 }
 

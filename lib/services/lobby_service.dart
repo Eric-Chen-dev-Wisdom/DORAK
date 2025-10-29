@@ -6,7 +6,7 @@ class LobbyService {
   static final Map<String, GameRoom> _rooms = {};
   
   // Generate random room code
-  String generateRoomCode() {
+  String _generateRoomCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = String.fromCharCodes(
       List.generate(6, (index) => 
@@ -18,17 +18,32 @@ class LobbyService {
   
   // Create new room
   GameRoom createRoom(String hostId, String hostName) {
-    final roomCode = generateRoomCode();
-    final room = GameRoom.create(hostId, roomCode);
+    final roomCode = _generateRoomCode();
     
-    // Add host to team A
-    room.teamA.add(UserModel(
+    // Create host user
+    final hostUser = UserModel(
       id: hostId,
       displayName: hostName,
       email: '',
+      photoUrl: '',
       type: UserType.guest,
       createdAt: DateTime.now(),
-    ));
+    );
+    
+    // Create room with PROPERLY INITIALIZED voting properties
+    final room = GameRoom(
+      code: roomCode,
+      hostId: hostId,
+      teamA: [hostUser],
+      teamB: [],
+      selectedCategories: [],
+      state: GameState.waiting,
+      createdAt: DateTime.now(),
+      maxPlayers: 10,
+      // FIX: Explicitly initialize voting properties
+      teamVotes: {'A': {}, 'B': {}},
+      voteHistory: {'A': [], 'B': []},
+    );
     
     _rooms[roomCode] = room;
     return room;

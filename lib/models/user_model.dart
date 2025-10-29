@@ -5,6 +5,8 @@ class UserModel {
   final String? photoUrl;
   final UserType type;
   final DateTime createdAt;
+  int? currentVote;
+  bool hasVoted;
 
   UserModel({
     required this.id,
@@ -13,7 +15,9 @@ class UserModel {
     this.photoUrl,
     required this.type,
     required this.createdAt,
-  });
+    this.currentVote,
+    bool? hasVoted,
+  }) : hasVoted = hasVoted ?? false;
 
   factory UserModel.guest(String name) {
     return UserModel(
@@ -33,21 +37,35 @@ class UserModel {
       'photoUrl': photoUrl,
       'type': type.toString(),
       'createdAt': createdAt.toIso8601String(),
+      'currentVote': currentVote,
+      'hasVoted': hasVoted,
     };
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['id'],
-      displayName: json['displayName'],
-      email: json['email'],
+      id: json['id'] ?? '',
+      displayName: json['displayName'] ?? '',
+      email: json['email'] ?? '',
       photoUrl: json['photoUrl'],
       type: UserType.values.firstWhere(
-        (e) => e.toString() == 'UserType.${json['type']}',
+        (e) => e.toString() == (json['type'] ?? 'UserType.guest'),
         orElse: () => UserType.guest,
       ),
-      createdAt: DateTime.parse(json['createdAt']),
+      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+      currentVote: json['currentVote'],
+      hasVoted: json['hasVoted'] ?? false,
     );
+  }
+
+  void submitVote(int answerIndex) {
+    currentVote = answerIndex;
+    hasVoted = true;
+  }
+
+  void clearVote() {
+    currentVote = null;
+    hasVoted = false;
   }
 }
 

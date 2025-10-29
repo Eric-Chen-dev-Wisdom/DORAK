@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 import '../services/navigation_service.dart';
 import '../utils/routes.dart';
-import '../services/auth_service.dart'; 
+import '../services/auth_service.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -29,7 +29,7 @@ class HomeScreen extends StatelessWidget {
                 child: const Icon(Icons.casino, color: Colors.white, size: 50),
               ),
               const SizedBox(height: 20),
-              
+
               // Updated Logo Section
               Stack(
                 alignment: Alignment.center,
@@ -56,7 +56,7 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  
+
                   // English text positioned as shadow below
                   Positioned(
                     bottom: -30,
@@ -82,9 +82,10 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              
-              const SizedBox(height: 50), // Increased spacing for the shadow text
-              
+
+              const SizedBox(
+                  height: 50), // Increased spacing for the shadow text
+
               // Tagline
               const Text(
                 'لِصةِ للطائفةِ والأكصدِفَاءِ\nA game that brings together family and friends',
@@ -94,10 +95,10 @@ class HomeScreen extends StatelessWidget {
                   color: AppConstants.textColor,
                 ),
               ),
-              
+
               // Spacer
               const Spacer(),
-              
+
               // Action Buttons
               Column(
                 children: [
@@ -110,7 +111,7 @@ class HomeScreen extends StatelessWidget {
                       child: const Padding(
                         padding: EdgeInsets.all(16.0),
                         child: Text(
-                          'Start Playing',
+                          'Create Account',
                           style: TextStyle(fontSize: 18),
                         ),
                       ),
@@ -121,13 +122,14 @@ class HomeScreen extends StatelessWidget {
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () async {
-  final authService = AuthService();
-  final user = await authService.guestLogin('Guest Player');
-  NavigationService.navigateTo(
-    AppRoutes.lobby,
-    arguments: user,
-  );
-},
+                        final authService = AuthService();
+                        final user =
+                            await authService.guestLogin('Guest Player');
+                        NavigationService.navigateTo(
+                          AppRoutes.lobby,
+                          arguments: user,
+                        );
+                      },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppConstants.primaryRed,
                         side: const BorderSide(color: Color(0xFFCE1126)),
@@ -141,7 +143,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 40),
             ],
           ),
