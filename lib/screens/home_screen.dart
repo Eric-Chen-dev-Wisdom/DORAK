@@ -117,6 +117,7 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // In home_screen.dart - Add this button to the Column with other buttons
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,

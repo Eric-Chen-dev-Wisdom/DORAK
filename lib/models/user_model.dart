@@ -1,7 +1,8 @@
+// models/user_model.dart
 class UserModel {
   final String id;
   final String displayName;
-  final String email;
+  final String? email; // FIXED: Make email nullable
   final String? photoUrl;
   final UserType type;
   final DateTime createdAt;
@@ -11,7 +12,7 @@ class UserModel {
   UserModel({
     required this.id,
     required this.displayName,
-    required this.email,
+    this.email, // FIXED: Remove 'required' since it's nullable
     this.photoUrl,
     required this.type,
     required this.createdAt,
@@ -23,7 +24,7 @@ class UserModel {
     return UserModel(
       id: 'guest_${DateTime.now().millisecondsSinceEpoch}',
       displayName: name,
-      email: '',
+      email: null, // FIXED: Now this is allowed
       type: UserType.guest,
       createdAt: DateTime.now(),
     );
@@ -46,7 +47,7 @@ class UserModel {
     return UserModel(
       id: json['id'] ?? '',
       displayName: json['displayName'] ?? '',
-      email: json['email'] ?? '',
+      email: json['email'], // FIXED: Can be null
       photoUrl: json['photoUrl'],
       type: UserType.values.firstWhere(
         (e) => e.toString() == (json['type'] ?? 'UserType.guest'),

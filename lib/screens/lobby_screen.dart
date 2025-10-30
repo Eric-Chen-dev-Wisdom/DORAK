@@ -1,11 +1,12 @@
+// screens/lobby_screen.dart
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../utils/constants.dart';
 import '../services/navigation_service.dart';
 import '../services/lobby_service.dart';
 import '../models/user_model.dart';
 import '../models/room_model.dart';
-import '../widgets/host_control_panel.dart';
-import 'game_screen.dart';
+import 'category_selection_screen.dart'; // ADD THIS IMPORT
 
 class LobbyScreen extends StatefulWidget {
   final String? roomCode;
@@ -25,65 +26,155 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final LobbyService _lobbyService = LobbyService();
   final TextEditingController _roomCodeController = TextEditingController();
   final TextEditingController _nicknameController = TextEditingController();
+  
   GameRoom? _currentRoom;
   String _selectedTeam = 'A';
+  StreamSubscription<GameRoom?>? _roomSubscription;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    // Set hint text instead of pre-filling with actual value
-    _nicknameController.text = '';
+    _nicknameController.text = widget.user.displayName;
+    
     if (widget.roomCode != null) {
       _joinExistingRoom(widget.roomCode!);
     }
   }
 
- void _createNewRoom() {
-  final newRoom = _lobbyService.createRoom(
-    widget.user.id,
-    _nicknameController.text.isEmpty ? 'Koala' : _nicknameController.text,
-  );
-
-  setState(() {
-    _currentRoom = newRoom;
-  });
-}
+  @override
+  void dispose() {
+    _roomSubscription?.cancel();
+    super.dispose();
+  }
 
   void _joinExistingRoom(String roomCode) {
-    final room = _lobbyService.getRoom(roomCode);
-    if (room != null) {
-      // Create user with entered nickname
-      final joiningUser = UserModel(
-        id: widget.user.id,
-        displayName: _nicknameController.text.isEmpty
-            ? 'Koala'
-            : _nicknameController.text,
-        email: widget.user.email,
-        photoUrl: widget.user.photoUrl,
-        type: widget.user.type,
-        createdAt: DateTime.now(),
-      );
+    setState(() {
+      _isLoading = true;
+    });
 
-      final joined =
-          _lobbyService.joinRoom(roomCode, joiningUser, _selectedTeam);
-
-      if (joined) {
+    // Subscribe to real-time room updates
+    _roomSubscription = _lobbyService.getRoomStream(roomCode).listen((room) {
+      if (mounted) {
         setState(() {
-          _currentRoom = room;
+          _isLoading = false;
+          if (room != null) {
+            _currentRoom = room;
+            print('🔄 Room updated: ${room.teamA.length}A, ${room.teamB.length}B players');
+          }
         });
-      } else {
-        _showError('Failed to join room. Please check the room code.');
       }
-    } else {
-      _showError('Room not found. Please check the room code.');
+    }, onError: (error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      print('❌ Error listening to room: $error');
+      _showError('Failed to connect to room: $error');
+    });
+  }
+
+  void _createNewRoom() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final newRoom = await _lobbyService.createRoom(
+        widget.user.id,
+        _nicknameController.text.isEmpty ? 'Guest' : _nicknameController.text,
+      );
+      
+      // Subscribe to the new room
+      _roomSubscription = _lobbyService.getRoomStream(newRoom.code).listen((room) {
+        if (mounted && room != null) {
+          setState(() {
+            _currentRoom = room;
+            _isLoading = false;
+          });
+        }
+      });
+      
+      print('✅ Room created and listening: ${newRoom.code}');
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      _showError('Failed to create room: $e');
     }
   }
 
+  void _joinRoomWithCode() {
+    final roomCode = _roomCodeController.text.toUpperCase().trim();
+    if (roomCode.isEmpty) {
+      _showError('Please enter a room code');
+      return;
+    }
+    
+    if (roomCode.length != 6) {
+      _showError('Room code must be 6 characters');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Create user with entered nickname
+    final joiningUser = UserModel(
+      id: widget.user.id,
+      displayName: _nicknameController.text.isEmpty ? 'Guest' : _nicknameController.text,
+      email: widget.user.email,
+      photoUrl: widget.user.photoUrl,
+      type: widget.user.type,
+      createdAt: DateTime.now(),
+    );
+
+    _lobbyService.joinRoom(roomCode, joiningUser, _selectedTeam).then((success) {
+      if (!success && mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        _showError('Failed to join room. Please check the code.');
+      } else {
+        print('✅ Join request sent for room: $roomCode');
+        // The stream listener will update the UI when we successfully join
+      }
+    }).catchError((error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      _showError('Error joining room: $error');
+    });
+  }
+
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _startGame() {
+    if (_currentRoom == null) return;
+    
+    // Navigate to category selection first
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CategorySelectionScreen(
+          room: _currentRoom!,
+          user: widget.user,
+        ),
       ),
     );
   }
@@ -142,90 +233,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
   }
 
-  // Add this method for testing host controls
-  void _showHostControlsTest() {
-    final testRoom = GameRoom(
-      code: _currentRoom?.code ?? 'TEST123',
-      hostId: widget.user.id,
-      teamA: _currentRoom?.teamA ?? [],
-      teamB: _currentRoom?.teamB ?? [],
-      selectedCategories: _currentRoom?.selectedCategories ?? [],
-      state: _currentRoom?.state ?? GameState.waiting,
-      createdAt: _currentRoom?.createdAt ?? DateTime.now(),
-      maxPlayers: _currentRoom?.maxPlayers ?? 10,
-      currentRound: _currentRoom?.currentRound ?? 0,
-      scores: _currentRoom?.scores ?? {'teamA': 5, 'teamB': 3},
-      currentTimer: 60,
-      currentQuestionId: 'q1',
-      isTimerRunning: false,
-      usedPowerCards: [],
-      // FIX: Add these required voting properties
-      teamVotes: {'A': {}, 'B': {}},
-      voteHistory: {'A': [], 'B': []},
-    );
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.8,
-        child: HostControlPanel(
-          room: testRoom,
-          onPointsAdjust: (points) {
-            print('Points adjusted: $points');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Points adjusted: $points')),
-            );
-          },
-          onTimerAdjust: (seconds) {
-            print('Timer adjusted: $seconds seconds');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Timer set to: $seconds seconds')),
-            );
-          },
-          onNextQuestion: () {
-            print('Next question requested');
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Next question requested')),
-            );
-          },
-          onSkipQuestion: () {
-            print('Question skipped');
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Question skipped')),
-            );
-          },
-          onPowerCardUsed: (card) {
-            print('Power card used: $card');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Power card used: $card')),
-            );
-          },
-          onEndGame: () {
-            Navigator.pop(context);
-            print('Game ended');
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Game ended')),
-            );
-          },
-          // Add these new required callbacks:
-          onStartVoting: () {
-            print('Voting started');
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Voting started')),
-            );
-          },
-          onRevealAnswer: () {
-            print('Answer revealed');
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Answer revealed')),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -241,16 +248,32 @@ class _LobbyScreenState extends State<LobbyScreen> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16.0), // Reduced padding
-          child: _currentRoom == null ? _buildRoomSelection() : _buildLobby(),
+          padding: const EdgeInsets.all(16.0),
+          child: _isLoading 
+              ? _buildLoading()
+              : _currentRoom == null 
+                  ? _buildRoomSelection() 
+                  : _buildLobby(),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('Connecting to room...'),
+        ],
       ),
     );
   }
 
   Widget _buildRoomSelection() {
     return SingleChildScrollView(
-      // Added SingleChildScrollView to prevent overflow
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -275,9 +298,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Nickname',
                       border: OutlineInputBorder(),
-                      hintText: 'Koala', // Changed to "Koala" as example
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      hintText: 'Enter your nickname',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -286,16 +308,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
             ),
           ),
 
-          const SizedBox(height: 20), // Reduced spacing
+          const SizedBox(height: 20),
 
           // Create Room Section
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(16.0), // Reduced padding
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  const Icon(Icons.add_circle_outline,
-                      size: 40, color: Color(0xFFCE1126)), // Smaller icon
+                  const Icon(Icons.add_circle_outline, size: 40, color: Color(0xFFCE1126)),
                   const SizedBox(height: 12),
                   const Text(
                     'Create New Room',
@@ -319,8 +340,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     child: ElevatedButton(
                       onPressed: _createNewRoom,
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 12), // Reduced padding
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: const Text('Create Room'),
                     ),
@@ -337,11 +357,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
           // Join Room Section
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(16.0), // Reduced padding
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  const Icon(Icons.group_add,
-                      size: 40, color: Color(0xFF007A3D)), // Smaller icon
+                  const Icon(Icons.group_add, size: 40, color: Color(0xFF007A3D)),
                   const SizedBox(height: 12),
                   const Text(
                     'Join Existing Room',
@@ -366,19 +385,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       labelText: 'Room Code',
                       border: OutlineInputBorder(),
                       hintText: 'Enter 6-digit code',
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 16, letterSpacing: 2), // Smaller font
+                    style: const TextStyle(fontSize: 16, letterSpacing: 2),
                   ),
                   const SizedBox(height: 12),
                   const Text(
                     'Select Team:',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold), // Smaller font
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -387,33 +402,23 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         child: OutlinedButton(
                           onPressed: () => setState(() => _selectedTeam = 'A'),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: _selectedTeam == 'A'
-                                ? Colors.white
-                                : const Color(0xFFCE1126),
-                            backgroundColor: _selectedTeam == 'A'
-                                ? const Color(0xFFCE1126)
-                                : Colors.transparent,
+                            foregroundColor: _selectedTeam == 'A' ? Colors.white : const Color(0xFFCE1126),
+                            backgroundColor: _selectedTeam == 'A' ? const Color(0xFFCE1126) : Colors.transparent,
                             side: const BorderSide(color: Color(0xFFCE1126)),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 10), // Reduced padding
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                           ),
                           child: const Text('Team A'),
                         ),
                       ),
-                      const SizedBox(width: 12), // Reduced spacing
+                      const SizedBox(width: 12),
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => setState(() => _selectedTeam = 'B'),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: _selectedTeam == 'B'
-                                ? Colors.white
-                                : const Color(0xFF007A3D),
-                            backgroundColor: _selectedTeam == 'B'
-                                ? const Color(0xFF007A3D)
-                                : Colors.transparent,
+                            foregroundColor: _selectedTeam == 'B' ? Colors.white : const Color(0xFF007A3D),
+                            backgroundColor: _selectedTeam == 'B' ? const Color(0xFF007A3D) : Colors.transparent,
                             side: const BorderSide(color: Color(0xFF007A3D)),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 10), // Reduced padding
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                           ),
                           child: const Text('Team B'),
                         ),
@@ -424,18 +429,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (_roomCodeController.text.isNotEmpty) {
-                          _joinExistingRoom(
-                              _roomCodeController.text.toUpperCase());
-                        } else {
-                          _showError('Please enter a room code');
-                        }
-                      },
+                      onPressed: _joinRoomWithCode,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF007A3D),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 12), // Reduced padding
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: const Text('Join Room'),
                     ),
@@ -445,19 +442,21 @@ class _LobbyScreenState extends State<LobbyScreen> {
             ),
           ),
 
-          const SizedBox(height: 20), // Added bottom padding for scroll
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
   Widget _buildLobby() {
+    final isHost = _currentRoom!.hostId == widget.user.id;
+    
     return Column(
       children: [
         // Room Info
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(16.0), // Reduced padding
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
                 const Text(
@@ -471,189 +470,114 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 Text(
                   'Code: ${_currentRoom!.code}',
                   style: const TextStyle(
-                    fontSize: 28, // Slightly smaller font
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFCE1126),
                     letterSpacing: 3,
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Flexible(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => GameScreen(
-                                room: _currentRoom!,
-                                user: widget.user,
-                                isHost: true,
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Start Game'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF007A3D),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
-                        ),
+                if (isHost) 
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _startGame,
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Start Game'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF007A3D),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
-                  ],
-                ),
-                // Add the Test Host Controls button here
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _showHostControlsTest,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
                   ),
-                  child: const Text('Test Host Controls'),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _shareRoomCode,
+                    icon: const Icon(Icons.share),
+                    label: const Text('Share Room Code'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
         ),
 
-        const SizedBox(height: 16), // Reduced spacing
+        const SizedBox(height: 16),
 
         // Teams
         Expanded(
           child: Row(
             children: [
               // Team A
-              Expanded(
-                child: Card(
-                  color: const Color(0xFFFFE5E5),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0), // Reduced padding
-                    child: Column(
-                      children: [
-                        const Text(
-                          'Team A',
-                          style: TextStyle(
-                            fontSize: AppConstants.titleSize,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFCE1126),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Expanded(
-                          child: _currentRoom!.teamA.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'No players yet',
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                )
-                              : ListView(
-                                  children: _currentRoom!.teamA
-                                      .map((user) => ListTile(
-                                            leading: CircleAvatar(
-                                              backgroundColor:
-                                                  const Color(0xFFCE1126),
-                                              child: Text(
-                                                user.displayName
-                                                    .substring(0, 1)
-                                                    .toUpperCase(),
-                                                style: const TextStyle(
-                                                    color: Colors.white),
-                                              ),
-                                            ),
-                                            title: Text(
-                                              user.displayName,
-                                              style: const TextStyle(
-                                                  fontSize: 14), // Smaller font
-                                            ),
-                                            subtitle: Text(
-                                              user.type == UserType.guest
-                                                  ? 'Guest'
-                                                  : 'Member',
-                                              style: const TextStyle(
-                                                  fontSize: 12), // Smaller font
-                                            ),
-                                          ))
-                                      .toList(),
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 12), // Reduced spacing
-
-              // Team B
-              Expanded(
-                child: Card(
-                  color: const Color(0xFFE5F4E5),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0), // Reduced padding
-                    child: Column(
-                      children: [
-                        const Text(
-                          'Team B',
-                          style: TextStyle(
-                            fontSize: AppConstants.titleSize,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF007A3D),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Expanded(
-                          child: _currentRoom!.teamB.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'No players yet',
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                )
-                              : ListView(
-                                  children: _currentRoom!.teamB
-                                      .map((user) => ListTile(
-                                            leading: CircleAvatar(
-                                              backgroundColor:
-                                                  const Color(0xFF007A3D),
-                                              child: Text(
-                                                user.displayName
-                                                    .substring(0, 1)
-                                                    .toUpperCase(),
-                                                style: const TextStyle(
-                                                    color: Colors.white),
-                                              ),
-                                            ),
-                                            title: Text(
-                                              user.displayName,
-                                              style: const TextStyle(
-                                                  fontSize: 14), // Smaller font
-                                            ),
-                                            subtitle: Text(
-                                              user.type == UserType.guest
-                                                  ? 'Guest'
-                                                  : 'Member',
-                                              style: const TextStyle(
-                                                  fontSize: 12), // Smaller font
-                                            ),
-                                          ))
-                                      .toList(),
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              _buildTeamCard('A', _currentRoom!.teamA, const Color(0xFFFFE5E5), const Color(0xFFCE1126)),
+              const SizedBox(width: 12),
+              // Team B  
+              _buildTeamCard('B', _currentRoom!.teamB, const Color(0xFFE5F4E5), const Color(0xFF007A3D)),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTeamCard(String team, List<UserModel> users, Color cardColor, Color textColor) {
+    return Expanded(
+      child: Card(
+        color: cardColor,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            children: [
+              Text(
+                'Team $team',
+                style: TextStyle(
+                  fontSize: AppConstants.titleSize,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: users.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No players yet',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: users.length,
+                        itemBuilder: (context, index) => ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: textColor,
+                            child: Text(
+                              users[index].displayName.substring(0, 1).toUpperCase(),
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          title: Text(
+                            users[index].displayName,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          subtitle: Text(
+                            users[index].type == UserType.guest ? 'Guest' : 'Member',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          trailing: users[index].id == _currentRoom!.hostId
+                              ? const Icon(Icons.star, color: Colors.amber, size: 16)
+                              : null,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

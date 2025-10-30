@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "713386019411",
+    "project_id": "dorak-game",
+    "storage_bucket": "dorak-game.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:713386019411:android:3444affb7fd0dda6b2d4a6",
+        "android_client_info": {
+          "package_name": "com.example.dorak_game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfXLdup6l-DRIbVJfO-p0U_gFdr9WXJ-Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

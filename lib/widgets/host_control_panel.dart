@@ -503,7 +503,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
 
   Widget _buildPointsButton(
       IconData icon, Color color, VoidCallback onPressed) {
-    return Container(
+    return SizedBox(
       width: 32,
       height: 32,
       child: IconButton(
@@ -518,7 +518,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
   Widget _buildAwardButton(String team, int points, String label) {
     return Column(
       children: [
-        Container(
+        SizedBox(
           width: 36,
           height: 36,
           child: FloatingActionButton(

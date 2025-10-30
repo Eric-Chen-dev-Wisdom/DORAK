@@ -10,12 +10,18 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.2
+  cupertino_icons: ^1.0.6           # Minor updates only
+  firebase_core: ^3.4.0
+  cloud_firestore: ^5.6.12             # Stable & compatible with Flutter 3.x
+  firebase_auth: ^5.3.2             # Reliable, no breaking API changes
+  google_sign_in: ^5.3.2            # Works well with firebase_auth 5.x
+  sign_in_with_apple: ^6.1.0        # Stable for both iOS and macOS
+  shared_preferences: ^2.2.2        # Already stable, fine to keep
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^5.0.0             # Good balance between new and stable rules
 
 flutter:
   uses-material-design: true

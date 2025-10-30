@@ -1,66 +1,38 @@
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// services/auth_service.dart
 import '../models/user_model.dart';
 
 class AuthService {
-  // Temporary: Remove Firebase for prototype testing
-  // final FirebaseAuth _auth = FirebaseAuth.instance;
-  // final GoogleSignIn _googleSignIn = GoogleSignIn();
-
-  // Get current user - temporary for prototype
-  // User? get currentUser => _auth.currentUser;
-  UserModel? get currentUser => null;
-
-  // Check if user is logged in - temporary for prototype
-  // bool get isLoggedIn => _auth.currentUser != null;
-  bool get isLoggedIn => false;
-
-  // Guest login - THIS WILL WORK
-  Future<UserModel> guestLogin(String displayName) async {
-    final user = UserModel.guest(displayName);
-    
-    // Save guest session locally
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('guest_name', displayName);
-    await prefs.setBool('is_guest', true);
-    
-    return user;
+  // Use mock users for testing instead of Firebase Auth
+  Future<UserModel?> guestLogin(String displayName) async {
+    try {
+      // Create a mock user without Firebase Auth
+      // This avoids the emulator conflict
+      final mockUser = UserModel(
+        id: 'mock_${DateTime.now().millisecondsSinceEpoch}_${displayName.hashCode}',
+        displayName: displayName,
+        email: null,
+        photoUrl: null,
+        type: UserType.guest,
+        createdAt: DateTime.now(),
+      );
+      
+      print('✅ Mock guest login: ${mockUser.displayName} (ID: ${mockUser.id})');
+      return mockUser;
+    } catch (e) {
+      print('❌ Mock guest login error: $e');
+      return null;
+    }
   }
 
-  // Google Sign In - temporary mock
+  // Placeholder for Google Sign-In
   Future<UserModel?> signInWithGoogle() async {
-    // Temporary: Show dialog that this feature is coming soon
-    // We'll implement this when we set up Firebase
+    print('🔜 Google Sign-In not implemented yet');
     return null;
   }
 
-  // Apple Sign In - temporary mock  
+  // Placeholder for Apple Sign-In  
   Future<UserModel?> signInWithApple() async {
-    // Temporary: Show dialog that this feature is coming soon
-    // We'll implement this when we set up Firebase
+    print('🔜 Apple Sign-In not implemented yet');
     return null;
-  }
-
-  // Sign out
-  Future<void> signOut() async {
-    // await _auth.signOut();
-    // await _googleSignIn.signOut();
-    
-    // Clear guest session
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('guest_name');
-    await prefs.remove('is_guest');
-  }
-
-  // Check if user has guest session
-  Future<bool> hasGuestSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('is_guest') ?? false;
-  }
-
-  // Get guest name
-  Future<String?> getGuestName() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('guest_name');
   }
 }
