@@ -27,7 +27,7 @@ class LoginScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 60),
-              
+
               // Welcome Text
               const Text(
                 'Welcome to DORAK!',
@@ -46,9 +46,26 @@ class LoginScreen extends StatelessWidget {
                   color: AppConstants.textColor,
                 ),
               ),
-              
+              const SizedBox(height: 20), // Add some spacing
+
+               Container(
+                    width: 330,
+                    height: 230,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        'assets/images/login.png', // Your logo image
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                      ),
+                    ),
+                  ),
               const Spacer(),
-              
+
               // Login Options
               Column(
                 children: [
@@ -56,16 +73,15 @@ class LoginScreen extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
-  final authService = AuthService();
-  final user = await authService.signInWithGoogle();
-  if (user != null) {
-    NavigationService.navigateTo(
-      AppRoutes.lobby,
-      arguments: user, // Pass the user to lobby
-    );
-  }
-},
-
+                        final authService = AuthService();
+                        final user = await authService.signInWithGoogle();
+                        if (user != null) {
+                          NavigationService.navigateTo(
+                            AppRoutes.lobby,
+                            arguments: user, // Pass the user to lobby
+                          );
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.black,
@@ -89,15 +105,15 @@ class LoginScreen extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
-  final authService = AuthService();
-  final user = await authService.signInWithApple();
-  if (user != null) {
-    NavigationService.navigateTo(
-      AppRoutes.lobby,
-      arguments: user, // Pass the user to lobby
-    );
-  }
-},
+                        final authService = AuthService();
+                        final user = await authService.signInWithApple();
+                        if (user != null) {
+                          NavigationService.navigateTo(
+                            AppRoutes.lobby,
+                            arguments: user, // Pass the user to lobby
+                          );
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
                         foregroundColor: Colors.white,
@@ -120,14 +136,15 @@ class LoginScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                     onPressed: () async {
-  final authService = AuthService();
-  final user = await authService.guestLogin('Guest Player');
-  NavigationService.navigateTo(
-    AppRoutes.lobby,
-    arguments: user, // Pass the user to lobby
-  );
-},
+                      onPressed: () async {
+                        final authService = AuthService();
+                        final user =
+                            await authService.guestLogin('Guest Player');
+                        NavigationService.navigateTo(
+                          AppRoutes.lobby,
+                          arguments: user, // Pass the user to lobby
+                        );
+                      },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppConstants.primaryRed,
                         side: const BorderSide(color: Color(0xFFCE1126)),
@@ -141,7 +158,7 @@ class LoginScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 40),
             ],
           ),

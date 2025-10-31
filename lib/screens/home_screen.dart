@@ -1,11 +1,53 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../utils/constants.dart';
 import '../services/navigation_service.dart';
 import '../utils/routes.dart';
 import '../services/auth_service.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startAutoPlay();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _startAutoPlay() {
+    _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (_pageController.hasClients) {
+        if (_currentPage < 2) {
+          _pageController.nextPage(
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        } else {
+          _pageController.animateToPage(
+            0,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,74 +60,31 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Header
-              const SizedBox(height: 40),
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: AppConstants.primaryRed,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(Icons.casino, color: Colors.white, size: 50),
-              ),
-              const SizedBox(height: 20),
-
-              // Updated Logo Section
+              const SizedBox(height: 30),
+              // Logo Section with image
               Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Arabic text with exclamation mark on the left
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '!',
-                        style: TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: AppConstants.primaryBlack,
-                        ),
+                  // Main logo container with image
+                  Container(
+                    width: 220,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        'assets/images/logo.png', // Your logo image
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
                       ),
-                      Text(
-                        'دورك',
-                        style: TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: AppConstants.primaryBlack,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // English text positioned as shadow below
-                  Positioned(
-                    bottom: -30,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '!',
-                          style: TextStyle(
-                            fontSize: 24,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        Text(
-                          'Dorak',
-                          style: TextStyle(
-                            fontSize: 24,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ],
               ),
-
-              const SizedBox(
-                  height: 50), // Increased spacing for the shadow text
-
+              
               // Tagline
               const Text(
                 'لِصةِ للطائفةِ والأكصدِفَاءِ\nA game that brings together family and friends',
@@ -96,7 +95,11 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              // Spacer
+              const Spacer(),
+
+              // Real Image Carousel with auto-slide
+              _buildImageCarousel(),
+
               const Spacer(),
 
               // Action Buttons
@@ -108,6 +111,13 @@ class HomeScreen extends StatelessWidget {
                       onPressed: () {
                         NavigationService.navigateTo(AppRoutes.login);
                       },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppConstants.primaryRed,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                       child: const Padding(
                         padding: EdgeInsets.all(16.0),
                         child: Text(
@@ -117,15 +127,15 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // In home_screen.dart - Add this button to the Column with other buttons
+                  
                   const SizedBox(height: 16),
+                  
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () async {
                         final authService = AuthService();
-                        final user =
-                            await authService.guestLogin('Guest Player');
+                        final user = await authService.guestLogin('Guest Player');
                         NavigationService.navigateTo(
                           AppRoutes.lobby,
                           arguments: user,
@@ -135,6 +145,9 @@ class HomeScreen extends StatelessWidget {
                         foregroundColor: AppConstants.primaryRed,
                         side: const BorderSide(color: Color(0xFFCE1126)),
                         padding: const EdgeInsets.all(16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: const Text(
                         'Play as Guest',
@@ -149,6 +162,81 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildImageCarousel() {
+    final List<String> carouselImages = [
+      'assets/images/carousel1.png',
+      'assets/images/carousel2.png', 
+      'assets/images/carousel3.png', 
+    ];
+
+    return SizedBox(
+      height: 250,
+      child: PageView.builder(
+        controller: _pageController,
+        itemCount: carouselImages.length,
+        onPageChanged: (int page) {
+          setState(() {
+            _currentPage = page;
+          });
+        },
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Stack(
+                  children: [
+                    // Real image from assets
+                    Image.asset(
+                      carouselImages[index],
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
+                    
+                    // Image indicator
+                    Positioned(
+                      bottom: 10,
+                      left: 0,
+                      right: 0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(carouselImages.length, (dotIndex) {
+                          return Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: dotIndex == _currentPage 
+                                  ? Colors.white 
+                                  : Colors.white.withOpacity(0.5),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

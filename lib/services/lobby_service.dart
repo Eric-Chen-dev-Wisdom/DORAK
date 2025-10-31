@@ -1,4 +1,3 @@
-// services/lobby_service.dart
 import 'firebase_service.dart';
 import '../models/room_model.dart';
 import '../models/user_model.dart';
@@ -8,57 +7,95 @@ class LobbyService {
   final FirebaseService _firebaseService = FirebaseService();
   final Random _random = Random();
 
-  // Create a new room
+  // Create a new room with auth recovery
   Future<GameRoom> createRoom(String hostId, String hostName) async {
-    final roomCode = _generateRoomCode();
+    final int maxRetries = 3;
+    int retryCount = 0;
     
-    // Check if room already exists
-    final exists = await _firebaseService.doesRoomExist(roomCode);
-    if (exists) {
-      // Try again with new code
-      return createRoom(hostId, hostName);
+    print('🟡 Starting room creation for host: $hostName ($hostId)');
+    
+    while (retryCount < maxRetries) {
+      final roomCode = _generateRoomCode();
+      print('🟡 Generated room code: $roomCode (attempt ${retryCount + 1}/$maxRetries)');
+      
+      try {
+        // Check if room already exists
+        final exists = await _firebaseService.doesRoomExist(roomCode);
+        print('🟡 Room exists check: $exists');
+        
+        if (exists) {
+          retryCount++;
+          print('🔄 Room code $roomCode exists, retrying...');
+          continue;
+        }
+        
+        final room = GameRoom.createNew(
+          code: roomCode,
+          hostId: hostId,
+          hostName: hostName,
+        );
+        
+        print('🟡 Created room object, calling FirebaseService.createRoom...');
+        await _firebaseService.createRoom(room);
+        print('✅ Room created successfully: ${room.code}');
+        return room;
+        
+      } catch (e) {
+        retryCount++;
+        print('❌ Error creating room (attempt $retryCount/$maxRetries): $e');
+        
+        if (retryCount >= maxRetries) {
+          throw Exception('Failed to create room after $maxRetries attempts: $e');
+        }
+        
+        // Wait before retry
+        await Future.delayed(Duration(seconds: retryCount));
+      }
     }
     
-    final room = GameRoom.createNew(
-      code: roomCode,
-      hostId: hostId,
-      hostName: hostName,
-    );
-    
-    await _firebaseService.createRoom(room);
-    return room;
+    throw Exception('Failed to create room after $maxRetries attempts');
   }
 
   // Join an existing room
   Future<bool> joinRoom(String roomCode, UserModel user, String team) async {
     try {
+      print('🟡 Joining room: $roomCode, user: ${user.displayName}, team: $team');
+      
       // Check if room exists
       final exists = await _firebaseService.doesRoomExist(roomCode);
+      print('🟡 Room exists: $exists');
+      
       if (!exists) {
         return false;
       }
       
       await _firebaseService.joinRoom(roomCode, user, team);
+      print('✅ Successfully joined room');
       return true;
     } catch (e) {
-      print('Error joining room: $e');
+      print('❌ Error joining room: $e');
       return false;
     }
   }
 
-  // Get room stream for real-time updates - FIXED VERSION
+  // Get room stream for real-time updates
   Stream<GameRoom?> getRoomStream(String roomCode) {
+    print('🟡 Setting up room stream for: $roomCode');
     return _firebaseService.getRoomStream(roomCode).asyncMap((snapshot) async {
+      print('🟡 Room stream update received, exists: ${snapshot.exists}');
       if (snapshot.exists) {
         try {
           final data = snapshot.data() as Map<String, dynamic>;
-          return GameRoom.fromJson(data);
+          final room = GameRoom.fromJson(data);
+          print('🟡 Room parsed successfully: ${room.code}');
+          return room;
         } catch (e) {
           print('❌ Error parsing room data: $e');
           print('❌ Data received: ${snapshot.data()}');
           return null;
         }
       }
+      print('🟡 Room does not exist in stream');
       return null;
     });
   }
@@ -75,9 +112,4 @@ class LobbyService {
       6, (_) => chars.codeUnitAt(_random.nextInt(chars.length))));
   }
 
-  // Debug method to see all rooms
-  Future<void> debugPrintAllRooms() async {
-    final rooms = await _firebaseService.getAllRoomCodes();
-    print('📋 All rooms in emulator: $rooms');
-  }
 }
