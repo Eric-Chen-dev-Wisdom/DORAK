@@ -1,4 +1,4 @@
-package com.example.dorak_game
+package com.dorak.test
 
 import io.flutter.embedding.android.FlutterActivity
 

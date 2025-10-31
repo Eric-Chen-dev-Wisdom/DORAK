@@ -9,11 +9,15 @@ class FirebaseService {
   // Enhanced error handling for auth issues
   Stream<DocumentSnapshot> getRoomStream(String roomCode) {
     print('🟡 Getting room stream for: $roomCode');
-    return _firestore.collection('rooms').doc(roomCode).snapshots().handleError((error) {
+    return _firestore
+        .collection('rooms')
+        .doc(roomCode)
+        .snapshots()
+        .handleError((error) {
       print('❌ Room stream error: $error');
-      
+
       // Check if it's an auth error and try to recover
-      if (error.toString().contains('UNAUTHENTICATED') || 
+      if (error.toString().contains('UNAUTHENTICATED') ||
           error.toString().contains('INVALID_REFRESH_TOKEN')) {
         print('🔄 Auth error detected, clearing auth state...');
         _clearAuthState();
@@ -25,22 +29,22 @@ class FirebaseService {
   Future<void> createRoom(GameRoom room) async {
     try {
       print('🟡 Creating room in Firestore: ${room.code}');
-      
+
       // Clear auth state before operation
       await _clearAuthState();
-      
+
       await _firestore.collection('rooms').doc(room.code).set(room.toJson());
       print('✅ Room created in EMULATOR: ${room.code}');
-      
+
       // Verify the room was created
-      final createdDoc = await _firestore.collection('rooms').doc(room.code).get();
+      final createdDoc =
+          await _firestore.collection('rooms').doc(room.code).get();
       print('✅ Room verification: ${createdDoc.exists}');
-      
     } catch (e) {
       print('❌ Error creating room: $e');
-      
+
       // If it's an auth error, clear state and retry once
-      if (e.toString().contains('UNAUTHENTICATED') || 
+      if (e.toString().contains('UNAUTHENTICATED') ||
           e.toString().contains('INVALID_REFRESH_TOKEN')) {
         print('🔄 Auth error, clearing state and retrying...');
         await _clearAuthState();
@@ -66,20 +70,20 @@ class FirebaseService {
   Future<void> joinRoom(String roomCode, UserModel user, String team) async {
     try {
       await _clearAuthState(); // Clear auth before operation
-      
+
       final roomRef = _firestore.collection('rooms').doc(roomCode);
-      
+
       // Check if room exists
       final roomDoc = await roomRef.get();
       if (!roomDoc.exists) {
         throw Exception('Room $roomCode does not exist');
       }
-      
+
       // Update the specific team array
       await roomRef.update({
         'team$team': FieldValue.arrayUnion([user.toJson()])
       });
-      
+
       print('✅ User ${user.displayName} joined team $team in EMULATOR');
     } catch (e) {
       print('❌ Error joining room: $e');
@@ -127,19 +131,19 @@ class FirebaseService {
   Future<void> leaveRoom(String roomCode, String userId, String team) async {
     try {
       await _clearAuthState(); // Clear auth before operation
-      
+
       final roomRef = _firestore.collection('rooms').doc(roomCode);
       final roomDoc = await roomRef.get();
-      
+
       if (roomDoc.exists) {
         final data = roomDoc.data()!;
-        final teamList = List<Map<String, dynamic>>.from(data['team$team'] ?? []);
-        final updatedTeam = teamList.where((user) => user['id'] != userId).toList();
-        
-        await roomRef.update({
-          'team$team': updatedTeam
-        });
-        
+        final teamList =
+            List<Map<String, dynamic>>.from(data['team$team'] ?? []);
+        final updatedTeam =
+            teamList.where((user) => user['id'] != userId).toList();
+
+        await roomRef.update({'team$team': updatedTeam});
+
         print('✅ User $userId left team $team');
       }
     } catch (e) {

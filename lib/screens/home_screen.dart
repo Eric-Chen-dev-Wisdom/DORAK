@@ -84,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              
+
               // Tagline
               const Text(
                 'لِصةِ للطائفةِ والأكصدِفَاءِ\nA game that brings together family and friends',
@@ -127,15 +127,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                  
                   const SizedBox(height: 16),
-                  
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () async {
                         final authService = AuthService();
-                        final user = await authService.guestLogin('Guest Player');
+                        final user =
+                            await authService.guestLogin('Guest Player');
                         NavigationService.navigateTo(
                           AppRoutes.lobby,
                           arguments: user,
@@ -169,8 +168,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildImageCarousel() {
     final List<String> carouselImages = [
       'assets/images/carousel1.png',
-      'assets/images/carousel2.png', 
-      'assets/images/carousel3.png', 
+      'assets/images/carousel2.png',
+      'assets/images/carousel3.png',
     ];
 
     return SizedBox(
@@ -208,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: double.infinity,
                       height: double.infinity,
                     ),
-                    
+
                     // Image indicator
                     Positioned(
                       bottom: 10,
@@ -216,15 +215,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       right: 0,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(carouselImages.length, (dotIndex) {
+                        children:
+                            List.generate(carouselImages.length, (dotIndex) {
                           return Container(
                             width: 8,
                             height: 8,
                             margin: const EdgeInsets.symmetric(horizontal: 4),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: dotIndex == _currentPage 
-                                  ? Colors.white 
+                              color: dotIndex == _currentPage
+                                  ? Colors.white
                                   : Colors.white.withOpacity(0.5),
                             ),
                           );

@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.dorak_game"
+    namespace = "com.dorak.test"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.dorak_game"
+        applicationId = "com.dorak.test"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
