@@ -219,6 +219,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               final authService = AuthService();
                               final user = await authService.signInWithGoogle();
                               if (user != null) {
+                                // Redirect to LobbyScreen on successful Google login
                                 NavigationService.navigateTo(
                                   AppRoutes.lobby,
                                   arguments: user,
@@ -295,13 +296,21 @@ class _LoginScreenState extends State<LoginScreen> {
                               );
                             },
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: AppConstants.primaryRed,
-                              side: const BorderSide(color: Color(0xFFCE1126)),
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.green),
                               padding: const EdgeInsets.all(16),
                             ),
-                            child: const Text(
-                              'Continue as Guest',
-                              style: TextStyle(fontSize: 16),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.person_outline, size: 24),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Continue as Guest',
+                                  style: TextStyle(fontSize: 16),
+                                ),
+                              ],
                             ),
                           ),
                         ),
