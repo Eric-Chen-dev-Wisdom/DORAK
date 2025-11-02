@@ -125,6 +125,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
       _isLoading = true;
     });
 
+    // Start listening to the room BEFORE sending the join request
+    // so that when Firestore updates, the UI reflects it immediately.
+    _roomSubscription?.cancel();
+    _joinExistingRoom(roomCode);
+
     // Create user with entered nickname
     final joiningUser = UserModel(
       id: widget.user.id,
