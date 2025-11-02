@@ -52,11 +52,11 @@ class _HostControlPanelState extends State<HostControlPanel> {
 
   void _startTimer() {
     if (_isTimerRunning) return; // Prevent multiple starts
-    
+
     setState(() {
       _isTimerRunning = true;
     });
-    
+
     _startTimerCountdown();
     widget.onTimerAdjust(_remainingTime);
   }
@@ -64,7 +64,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
   void _startTimerCountdown() {
     // Cancel any existing timer first
     _timer?.cancel();
-    
+
     // Create new timer
     _timer = Timer.periodic(Duration(seconds: 1), (timer) {
       // Check if widget is still mounted
@@ -72,7 +72,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
         timer.cancel();
         return;
       }
-      
+
       if (_remainingTime > 0) {
         setState(() {
           _remainingTime--;
@@ -125,7 +125,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
     // Get current points
     int currentTeamAPoints = _currentRoom.teamAPoints;
     int currentTeamBPoints = _currentRoom.teamBPoints;
-    
+
     // Calculate new points
     if (team == 'A') {
       currentTeamAPoints += points;
@@ -134,16 +134,16 @@ class _HostControlPanelState extends State<HostControlPanel> {
       currentTeamBPoints += points;
       if (currentTeamBPoints < 0) currentTeamBPoints = 0;
     }
-    
+
     // Update the room
     _currentRoom.updatePoints(currentTeamAPoints, currentTeamBPoints);
-    
+
     // Refresh UI
     setState(() {});
-    
+
     // Call the callback to notify parent
     widget.onPointsAdjust(points);
-    
+
     print('Team $team: ${points > 0 ? '+' : ''}$points points');
   }
 

@@ -16,6 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
   Timer? _timer;
+  bool _isLoggingIn = false; // To prevent multiple presses
 
   @override
   void initState() {
@@ -47,6 +48,33 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     });
+  }
+
+  Future<void> _handleGuestLogin() async {
+    if (_isLoggingIn) return;
+    setState(() {
+      _isLoggingIn = true;
+    });
+    try {
+      final authService = AuthService();
+      final user = await authService.guestLogin('Guest Player');
+      // On success, redirect to lobby page with user
+      NavigationService.navigateTo(
+        AppRoutes.lobby,
+        arguments: user,
+      );
+    } catch (e) {
+      // Optionally, show an error here
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to log in as guest: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoggingIn = false;
+        });
+      }
+    }
   }
 
   @override
@@ -131,15 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () async {
-                        final authService = AuthService();
-                        final user =
-                            await authService.guestLogin('Guest Player');
-                        NavigationService.navigateTo(
-                          AppRoutes.lobby,
-                          arguments: user,
-                        );
-                      },
+                      onPressed: _isLoggingIn ? null : _handleGuestLogin,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppConstants.primaryRed,
                         side: const BorderSide(color: Color(0xFFCE1126)),
@@ -148,10 +168,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Play as Guest',
-                        style: TextStyle(fontSize: 18),
-                      ),
+                      child: _isLoggingIn
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'Play as Guest',
+                              style: TextStyle(fontSize: 18),
+                            ),
                     ),
                   ),
                 ],

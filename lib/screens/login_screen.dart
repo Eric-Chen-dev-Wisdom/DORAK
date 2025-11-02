@@ -15,7 +15,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Add loading and error state for firebase
   bool _initializing = true;
   String? _error;
 
@@ -40,7 +39,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Email login fields
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -57,13 +55,10 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text.trim(),
       );
       final user = credential.user;
-      // Map to your user model/route
       if (user != null) {
         NavigationService.navigateTo(
           AppRoutes.lobby,
-          arguments: {
-            'firebaseUser': user,
-          },
+          arguments: {'firebaseUser': user},
         );
       }
     } on FirebaseAuthException catch (e) {
@@ -132,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           },
           child: const Text("Don't have an account? Sign Up"),
-        )
+        ),
       ],
     );
   }
@@ -149,8 +144,10 @@ class _LoginScreenState extends State<LoginScreen> {
         body: Center(child: Text(_error!)),
       );
     }
+
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text('Sign In'),
         leading: IconButton(
@@ -161,147 +158,162 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 60),
-              // Welcome Text
-              const Text(
-                'Welcome to DORAK!',
-                style: TextStyle(
-                  fontSize: AppConstants.headingSize,
-                  fontWeight: FontWeight.bold,
-                  color: AppConstants.textColor,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Sign in to save your progress and compete with friends',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: AppConstants.bodySize,
-                  color: AppConstants.textColor,
-                ),
-              ),
-              const SizedBox(height: 20), // Add some spacing
-
-              Container(
-                width: 330,
-                height: 230,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.asset(
-                    'assets/images/login.png', // Your logo image
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                  ),
-                ),
-              ),
-              const Spacer(),
-
-              // Login Options
-              Column(
-                children: [
-                  _buildEmailLoginForm(),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final authService = AuthService();
-                        final user = await authService.signInWithGoogle();
-                        if (user != null) {
-                          NavigationService.navigateTo(
-                            AppRoutes.lobby,
-                            arguments: user, // Pass the user to lobby
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.all(16),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.g_mobiledata, size: 24),
-                          SizedBox(width: 12),
-                          Text(
-                            'Continue with Google',
-                            style: TextStyle(fontSize: 16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 40),
+                        const Text(
+                          'Welcome to DORAK!',
+                          style: TextStyle(
+                            fontSize: AppConstants.headingSize,
+                            fontWeight: FontWeight.bold,
+                            color: AppConstants.textColor,
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final authService = AuthService();
-                        final user = await authService.signInWithApple();
-                        if (user != null) {
-                          NavigationService.navigateTo(
-                            AppRoutes.lobby,
-                            arguments: user, // Pass the user to lobby
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.all(16),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.apple, size: 24),
-                          SizedBox(width: 12),
-                          Text(
-                            'Continue with Apple',
-                            style: TextStyle(fontSize: 16),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Sign in to save your progress and compete with friends',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: AppConstants.bodySize,
+                            color: AppConstants.textColor,
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Responsive image
+                        Container(
+                          width: double.infinity,
+                          constraints: const BoxConstraints(maxHeight: 230),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: Image.asset(
+                              'assets/images/login.png',
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        _buildEmailLoginForm(),
+
+                        const SizedBox(height: 16),
+
+                        // Google login
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final authService = AuthService();
+                              final user = await authService.signInWithGoogle();
+                              if (user != null) {
+                                NavigationService.navigateTo(
+                                  AppRoutes.lobby,
+                                  arguments: user,
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.all(16),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.g_mobiledata, size: 24),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Continue with Google',
+                                  style: TextStyle(fontSize: 16),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Apple login
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final authService = AuthService();
+                              final user = await authService.signInWithApple();
+                              if (user != null) {
+                                NavigationService.navigateTo(
+                                  AppRoutes.lobby,
+                                  arguments: user,
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.all(16),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.apple, size: 24),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Continue with Apple',
+                                  style: TextStyle(fontSize: 16),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Guest login
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              final authService = AuthService();
+                              final user =
+                                  await authService.guestLogin('Guest Player');
+                              NavigationService.navigateTo(
+                                AppRoutes.lobbyGuest,
+                                arguments: user,
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppConstants.primaryRed,
+                              side: const BorderSide(color: Color(0xFFCE1126)),
+                              padding: const EdgeInsets.all(16),
+                            ),
+                            child: const Text(
+                              'Continue as Guest',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 40),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () async {
-                        final authService = AuthService();
-                        final user =
-                            await authService.guestLogin('Guest Player');
-                        NavigationService.navigateTo(
-                          AppRoutes.lobby,
-                          arguments: user, // Pass the user to lobby
-                        );
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppConstants.primaryRed,
-                        side: const BorderSide(color: Color(0xFFCE1126)),
-                        padding: const EdgeInsets.all(16),
-                      ),
-                      child: const Text(
-                        'Continue as Guest',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-              const SizedBox(height: 40),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

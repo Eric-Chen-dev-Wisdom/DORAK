@@ -12,7 +12,7 @@ class GameRoom {
   int currentRound;
   final Map<String, int> scores;
   final int maxPlayers;
-  
+
   Map<String, Map<String, int>> teamVotes;
   bool votingInProgress;
   int? correctAnswerIndex;
@@ -22,7 +22,7 @@ class GameRoom {
   String currentQuestionId;
   bool isTimerRunning;
   List<String> usedPowerCards;
-  
+
   GameRoom({
     required this.code,
     required this.hostId,
@@ -42,8 +42,8 @@ class GameRoom {
     this.votingInProgress = false,
     this.correctAnswerIndex,
     required this.voteHistory,
-  }) : scores = scores ?? {'teamA': 0, 'teamB': 0},
-       usedPowerCards = usedPowerCards ?? [];
+  })  : scores = scores ?? {'teamA': 0, 'teamB': 0},
+        usedPowerCards = usedPowerCards ?? [];
 
   factory GameRoom.createNew({
     required String code,
@@ -86,7 +86,7 @@ class GameRoom {
   void startVoting() {
     votingInProgress = true;
     teamVotes = {'A': {}, 'B': {}};
-    
+
     for (var user in teamA) {
       user.clearVote();
     }
@@ -102,35 +102,35 @@ class GameRoom {
     final user = teamUsers.firstWhere((u) => u.id == userId);
     user.submitVote(answerIndex);
 
-    final currentVotes = teamVotes[team]!; 
+    final currentVotes = teamVotes[team]!;
     final answerKey = answerIndex.toString();
     currentVotes[answerKey] = (currentVotes[answerKey] ?? 0) + 1;
   }
 
   Map<String, int> getTeamFinalAnswers() {
     final result = <String, int>{};
-    
+
     for (final team in ['A', 'B']) {
       final votes = teamVotes[team]!;
       if (votes.isEmpty) {
         result[team] = -1;
         continue;
       }
-      
+
       int maxVotes = 0;
       String? mostVotedAnswer;
-      
+
       votes.forEach((answerKey, voteCount) {
         if (voteCount > maxVotes) {
           maxVotes = voteCount;
           mostVotedAnswer = answerKey;
         }
       });
-      
+
       // FIXED: Use null-aware operator with tryParse for safety
       result[team] = int.tryParse(mostVotedAnswer ?? '-1') ?? -1;
     }
-    
+
     return result;
   }
 
@@ -139,7 +139,7 @@ class GameRoom {
   }
 
   int getTotalVotesForTeam(String team) {
-    final votes = teamVotes[team]!; 
+    final votes = teamVotes[team]!;
     return votes.values.fold(0, (sum, count) => sum + count);
   }
 
@@ -149,7 +149,8 @@ class GameRoom {
       'hostId': hostId,
       'teamA': teamA.map((user) => user.toJson()).toList(),
       'teamB': teamB.map((user) => user.toJson()).toList(),
-      'selectedCategories': selectedCategories.map((cat) => cat.toJson()).toList(),
+      'selectedCategories':
+          selectedCategories.map((cat) => cat.toJson()).toList(),
       'state': state.toString(),
       'createdAt': createdAt.toIso8601String(),
       'currentRound': currentRound,
@@ -166,54 +167,68 @@ class GameRoom {
     };
   }
 
- factory GameRoom.fromJson(Map<String, dynamic> json) {
-  Map<String, Map<String, int>> parseTeamVotes(Map<String, dynamic>? votesJson) {
-    final result = <String, Map<String, int>>{'A': {}, 'B': {}};
-    if (votesJson != null) {
-      votesJson.forEach((team, votes) {
-        if (votes is Map) {
-          votes.forEach((answerKey, count) {
-            result[team]![answerKey.toString()] = (count as num).toInt();
-          });
-        }
-      });
+  factory GameRoom.fromJson(Map<String, dynamic> json) {
+    Map<String, Map<String, int>> parseTeamVotes(
+        Map<String, dynamic>? votesJson) {
+      final result = <String, Map<String, int>>{'A': {}, 'B': {}};
+      if (votesJson != null) {
+        votesJson.forEach((team, votes) {
+          if (votes is Map) {
+            votes.forEach((answerKey, count) {
+              result[team]![answerKey.toString()] = (count as num).toInt();
+            });
+          }
+        });
+      }
+      return result;
     }
-    return result;
-  }
 
-  Map<String, List<int>> parseVoteHistory(Map<String, dynamic>? historyJson) {
-    final result = <String, List<int>>{'A': [], 'B': []};
-    if (historyJson != null) {
-      historyJson.forEach((team, history) {
-        if (history is List) {
-          result[team] = history.map((item) => (item as num).toInt()).toList();
-        }
-      });
+    Map<String, List<int>> parseVoteHistory(Map<String, dynamic>? historyJson) {
+      final result = <String, List<int>>{'A': [], 'B': []};
+      if (historyJson != null) {
+        historyJson.forEach((team, history) {
+          if (history is List) {
+            result[team] =
+                history.map((item) => (item as num).toInt()).toList();
+          }
+        });
+      }
+      return result;
     }
-    return result;
-  }
 
-     return GameRoom(
-    code: json['code'] ?? '',
-    hostId: json['hostId'] ?? '',
-    teamA: (json['teamA'] as List?)?.map((userJson) => UserModel.fromJson(userJson)).toList() ?? [],
-    teamB: (json['teamB'] as List?)?.map((userJson) => UserModel.fromJson(userJson)).toList() ?? [],
-    selectedCategories: (json['selectedCategories'] as List?)?.map((catJson) => Category.fromJson(catJson)).toList() ?? [],
-    state: GameState.values.firstWhere((e) => e.toString() == (json['state'] ?? 'GameState.waiting'), orElse: () => GameState.waiting),
-    createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
-    maxPlayers: json['maxPlayers'] ?? 10,
-    currentRound: json['currentRound'] ?? 0,
-    scores: Map<String, int>.from(json['scores'] ?? {}),
-    currentTimer: json['currentTimer'] ?? 60,
-    currentQuestionId: json['currentQuestionId'] ?? '',
-    isTimerRunning: json['isTimerRunning'] ?? false,
-    usedPowerCards: List<String>.from(json['usedPowerCards'] ?? []),
-    teamVotes: parseTeamVotes(json['teamVotes']),
-    votingInProgress: json['votingInProgress'] ?? false,
-    correctAnswerIndex: json['correctAnswerIndex'],
-    voteHistory: parseVoteHistory(json['voteHistory']), // FIXED: Use new parser
-  );
-}
+    return GameRoom(
+      code: json['code'] ?? '',
+      hostId: json['hostId'] ?? '',
+      teamA: (json['teamA'] as List?)
+              ?.map((userJson) => UserModel.fromJson(userJson))
+              .toList() ??
+          [],
+      teamB: (json['teamB'] as List?)
+              ?.map((userJson) => UserModel.fromJson(userJson))
+              .toList() ??
+          [],
+      selectedCategories: (json['selectedCategories'] as List?)
+              ?.map((catJson) => Category.fromJson(catJson))
+              .toList() ??
+          [],
+      state: GameState.values.firstWhere(
+          (e) => e.toString() == (json['state'] ?? 'GameState.waiting'),
+          orElse: () => GameState.waiting),
+      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+      maxPlayers: json['maxPlayers'] ?? 10,
+      currentRound: json['currentRound'] ?? 0,
+      scores: Map<String, int>.from(json['scores'] ?? {}),
+      currentTimer: json['currentTimer'] ?? 60,
+      currentQuestionId: json['currentQuestionId'] ?? '',
+      isTimerRunning: json['isTimerRunning'] ?? false,
+      usedPowerCards: List<String>.from(json['usedPowerCards'] ?? []),
+      teamVotes: parseTeamVotes(json['teamVotes']),
+      votingInProgress: json['votingInProgress'] ?? false,
+      correctAnswerIndex: json['correctAnswerIndex'],
+      voteHistory:
+          parseVoteHistory(json['voteHistory']), // FIXED: Use new parser
+    );
+  }
 }
 
 enum GameState {

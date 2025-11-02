@@ -11,64 +11,66 @@ class LobbyService {
   Future<GameRoom> createRoom(String hostId, String hostName) async {
     final int maxRetries = 3;
     int retryCount = 0;
-    
+
     print('🟡 Starting room creation for host: $hostName ($hostId)');
-    
+
     while (retryCount < maxRetries) {
       final roomCode = _generateRoomCode();
-      print('🟡 Generated room code: $roomCode (attempt ${retryCount + 1}/$maxRetries)');
-      
+      print(
+          '🟡 Generated room code: $roomCode (attempt ${retryCount + 1}/$maxRetries)');
+
       try {
         // Check if room already exists
         final exists = await _firebaseService.doesRoomExist(roomCode);
         print('🟡 Room exists check: $exists');
-        
+
         if (exists) {
           retryCount++;
           print('🔄 Room code $roomCode exists, retrying...');
           continue;
         }
-        
+
         final room = GameRoom.createNew(
           code: roomCode,
           hostId: hostId,
           hostName: hostName,
         );
-        
+
         print('🟡 Created room object, calling FirebaseService.createRoom...');
         await _firebaseService.createRoom(room);
         print('✅ Room created successfully: ${room.code}');
         return room;
-        
       } catch (e) {
         retryCount++;
         print('❌ Error creating room (attempt $retryCount/$maxRetries): $e');
-        
+
         if (retryCount >= maxRetries) {
-          throw Exception('Failed to create room after $maxRetries attempts: $e');
+          throw Exception(
+              'Failed to create room after $maxRetries attempts: $e');
         }
-        
+
         // Wait before retry
         await Future.delayed(Duration(seconds: retryCount));
       }
     }
-    
+
     throw Exception('Failed to create room after $maxRetries attempts');
   }
 
   // Join an existing room
   Future<bool> joinRoom(String roomCode, UserModel user, String team) async {
     try {
-      print('🟡 Joining room: $roomCode, user: ${user.displayName}, team: $team');
-      
+      print(
+          '🟡 Joining room: $roomCode, user: ${user.displayName}, team: $team');
+
       // Check if room exists
       final exists = await _firebaseService.doesRoomExist(roomCode);
       print('🟡 Room exists: $exists');
-      
+
       if (!exists) {
         return false;
       }
-      
+
       await _firebaseService.joinRoom(roomCode, user, team);
       print('✅ Successfully joined room');
       return true;
@@ -109,7 +111,6 @@ class LobbyService {
   String _generateRoomCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     return String.fromCharCodes(Iterable.generate(
-      6, (_) => chars.codeUnitAt(_random.nextInt(chars.length))));
+        6, (_) => chars.codeUnitAt(_random.nextInt(chars.length))));
   }
-
 }

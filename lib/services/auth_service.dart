@@ -15,7 +15,7 @@ class AuthService {
         type: UserType.guest,
         createdAt: DateTime.now(),
       );
-      
+
       print('✅ Mock guest login: ${mockUser.displayName} (ID: ${mockUser.id})');
       return mockUser;
     } catch (e) {
@@ -30,7 +30,7 @@ class AuthService {
     return null;
   }
 
-  // Placeholder for Apple Sign-In  
+  // Placeholder for Apple Sign-In
   Future<UserModel?> signInWithApple() async {
     print('🔜 Apple Sign-In not implemented yet');
     return null;

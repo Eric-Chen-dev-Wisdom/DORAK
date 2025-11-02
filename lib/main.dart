@@ -9,6 +9,7 @@ import 'screens/lobby_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/category_selection_screen.dart';
 import 'screens/game_screen.dart';
+import 'screens/lobby_guest_screen.dart';
 import 'models/user_model.dart';
 import 'models/room_model.dart';
 // firebase
@@ -56,6 +57,16 @@ class DorakApp extends StatelessWidget {
 
           case AppRoutes.login:
             return MaterialPageRoute(builder: (_) => const LoginScreen());
+
+          case AppRoutes.lobbyGuest:
+            if (settings.arguments is UserModel) {
+              final user = settings.arguments as UserModel;
+              return MaterialPageRoute(
+                builder: (_) => LobbyGuestScreen(user: user),
+              );
+            }
+            print('❌ Invalid arguments for Lobby Guest route');
+            return MaterialPageRoute(builder: (_) => const HomeScreen());
 
           case AppRoutes.lobby:
             if (settings.arguments is UserModel) {

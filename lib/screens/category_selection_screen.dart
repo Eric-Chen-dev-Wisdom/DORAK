@@ -17,7 +17,8 @@ class CategorySelectionScreen extends StatefulWidget {
   });
 
   @override
-  State<CategorySelectionScreen> createState() => _CategorySelectionScreenState();
+  State<CategorySelectionScreen> createState() =>
+      _CategorySelectionScreenState();
 }
 
 class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
@@ -37,7 +38,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       challenges: [],
     ),
     Category(
-      id: '3', 
+      id: '3',
       name: 'Gulf Culture',
       description: 'Questions about Gulf traditions',
       type: CategoryType.trivia,
@@ -47,7 +48,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       id: '4',
       name: 'Movies & TV',
       description: 'Guess movies and TV shows',
-      type: CategoryType.trivia, 
+      type: CategoryType.trivia,
       challenges: [],
     ),
     Category(
@@ -166,7 +167,9 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                 Text(
                   '${_selectedCategories.length} selected (Min: 5, Max: 8)',
                   style: TextStyle(
-                    color: _selectedCategories.length >= 5 ? Colors.green : Colors.orange,
+                    color: _selectedCategories.length >= 5
+                        ? Colors.green
+                        : Colors.orange,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -188,7 +191,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
               itemBuilder: (context, index) {
                 final category = _availableCategories[index];
                 final isSelected = _selectedCategories.contains(category);
-                
+
                 return _buildCategoryCard(category, isSelected);
               },
             ),
@@ -207,7 +210,8 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                 ),
                 child: Text(
                   'Start Game (${_selectedCategories.length}/5)',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -247,7 +251,9 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
     return GestureDetector(
       onTap: () => _toggleCategory(category),
       child: Card(
-        color: isSelected ? getCategoryColor(category.type).withOpacity(0.2) : Colors.white,
+        color: isSelected
+            ? getCategoryColor(category.type).withOpacity(0.2)
+            : Colors.white,
         elevation: 2,
         child: Container(
           decoration: isSelected

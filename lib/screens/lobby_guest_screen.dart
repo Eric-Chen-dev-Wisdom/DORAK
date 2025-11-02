@@ -8,21 +8,21 @@ import '../models/user_model.dart';
 import '../models/room_model.dart';
 import 'category_selection_screen.dart'; // ADD THIS IMPORT
 
-class LobbyScreen extends StatefulWidget {
+class LobbyGuestScreen extends StatefulWidget {
   final String? roomCode;
   final UserModel user;
 
-  const LobbyScreen({
+  const LobbyGuestScreen({
     super.key,
     this.roomCode,
     required this.user,
   });
 
   @override
-  State<LobbyScreen> createState() => _LobbyScreenState();
+  State<LobbyGuestScreen> createState() => _LobbyGuestScreenState();
 }
 
-class _LobbyScreenState extends State<LobbyScreen> {
+class _LobbyGuestScreenState extends State<LobbyGuestScreen> {
   final LobbyService _lobbyService = LobbyService();
   final TextEditingController _roomCodeController = TextEditingController();
   final TextEditingController _nicknameController = TextEditingController();
@@ -74,39 +74,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
       print('❌ Error listening to room: $error');
       _showError('Failed to connect to room: $error');
     });
-  }
-
-  void _createNewRoom() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final newRoom = await _lobbyService.createRoom(
-        widget.user.id,
-        _nicknameController.text.isEmpty ? 'Guest' : _nicknameController.text,
-      );
-
-      // Subscribe to the new room
-      _roomSubscription =
-          _lobbyService.getRoomStream(newRoom.code).listen((room) {
-        if (mounted && room != null) {
-          setState(() {
-            _currentRoom = room;
-            _isLoading = false;
-          });
-        }
-      });
-
-      print('✅ Room created and listening: ${newRoom.code}');
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-      _showError('Failed to create room: $e');
-    }
   }
 
   void _joinRoomWithCode() {
@@ -308,49 +275,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                     textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // Create Room Section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  const Icon(Icons.add_circle_outline,
-                      size: 40, color: Color(0xFFCE1126)),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Create New Room',
-                    style: TextStyle(
-                      fontSize: AppConstants.titleSize,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Start a new game and invite friends',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: AppConstants.bodySize,
-                      color: AppConstants.textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _createNewRoom,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text('Create Room'),
-                    ),
                   ),
                 ],
               ),

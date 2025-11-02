@@ -37,7 +37,7 @@ class _GameScreenState extends State<GameScreen> {
       'category': 'Animals',
     },
     {
-      'id': '2', 
+      'id': '2',
       'question': 'What is the capital of France?',
       'options': ['London', 'Berlin', 'Paris', 'Madrid'],
       'correctAnswer': 2,
@@ -50,7 +50,7 @@ class _GameScreenState extends State<GameScreen> {
     super.initState();
     _remainingTime = widget.room.currentTimer;
     _isTimerRunning = widget.room.isTimerRunning;
-    
+
     // Ensure voting is properly initialized
     if (!widget.room.votingInProgress) {
       widget.room.startVoting();
@@ -65,28 +65,32 @@ class _GameScreenState extends State<GameScreen> {
 
   void _handleVoteSubmit() {
     if (_selectedAnswerIndex == -1) return;
-    
-    final userTeam = widget.room.teamA.any((user) => user.id == widget.user.id) ? 'A' : 'B';
-    
+
+    final userTeam =
+        widget.room.teamA.any((user) => user.id == widget.user.id) ? 'A' : 'B';
+
     // Use the GameRoom's voting system
     widget.room.submitVote(userTeam, _selectedAnswerIndex, widget.user.id);
-    
+
     setState(() {
       // Update local state to reflect the vote
       _teamVotes[userTeam] = widget.room.getTotalVotesForTeam(userTeam);
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Vote submitted for option ${_selectedAnswerIndex + 1}')),
+      SnackBar(
+          content:
+              Text('Vote submitted for option ${_selectedAnswerIndex + 1}')),
     );
   }
 
   void _handlePointsAdjust(int points) {
-  // The points are already updated in the GameRoom by the host control panel
-  // Just refresh the UI to show the new scores
-  setState(() {});
-  print('UI refreshed - Team A: ${widget.room.teamAPoints}, Team B: ${widget.room.teamBPoints}');
-}
+    // The points are already updated in the GameRoom by the host control panel
+    // Just refresh the UI to show the new scores
+    setState(() {});
+    print(
+        'UI refreshed - Team A: ${widget.room.teamAPoints}, Team B: ${widget.room.teamBPoints}');
+  }
 
   void _handleTimerAdjust(int seconds) {
     setState(() {
@@ -98,37 +102,40 @@ class _GameScreenState extends State<GameScreen> {
 
   void _handleNextQuestion() {
     setState(() {
-      _currentQuestionIndex = (_currentQuestionIndex + 1) % _sampleQuestions.length;
+      _currentQuestionIndex =
+          (_currentQuestionIndex + 1) % _sampleQuestions.length;
       _selectedAnswerIndex = -1;
       _remainingTime = 60;
       _teamVotes = {'A': 0, 'B': 0};
       widget.room.startVoting(); // Automatically start voting for next question
       _isTimerRunning = true;
     });
-    
+
     final nextQuestion = _sampleQuestions[_currentQuestionIndex];
     print('Next question: ${nextQuestion['question']}');
   }
 
   void _handleSkipQuestion() {
     setState(() {
-      _currentQuestionIndex = (_currentQuestionIndex + 1) % _sampleQuestions.length;
+      _currentQuestionIndex =
+          (_currentQuestionIndex + 1) % _sampleQuestions.length;
       _selectedAnswerIndex = -1;
       _remainingTime = 60;
       _teamVotes = {'A': 0, 'B': 0};
       widget.room.startVoting(); // Start voting for skipped question
       _isTimerRunning = true;
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Question skipped!'), backgroundColor: Colors.orange),
+      const SnackBar(
+          content: Text('Question skipped!'), backgroundColor: Colors.orange),
     );
     print('Question skipped');
   }
 
   void _handlePowerCardUsed(String card) {
     widget.room.usePowerCard(card);
-    
+
     // Handle different power card effects
     switch (card) {
       case 'Double Points':
@@ -148,9 +155,10 @@ class _GameScreenState extends State<GameScreen> {
         _handleSkipQuestion();
         return; // Skip the snackbar below since we already show one
     }
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$card activated!'), backgroundColor: Colors.purple),
+      SnackBar(
+          content: Text('$card activated!'), backgroundColor: Colors.purple),
     );
     setState(() {});
     print('Power card used: $card');
@@ -169,7 +177,7 @@ class _GameScreenState extends State<GameScreen> {
       _remainingTime = 60;
       _isTimerRunning = true;
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Voting started! Teams can now submit answers.'),
@@ -183,49 +191,58 @@ class _GameScreenState extends State<GameScreen> {
     final currentQuestion = _sampleQuestions[_currentQuestionIndex];
     final correctAnswerIndex = currentQuestion['correctAnswer'] as int;
     final correctAnswer = currentQuestion['options'][correctAnswerIndex];
-    
+
     // Get team final answers
     final teamAnswers = widget.room.getTeamFinalAnswers();
-    
+
     // Calculate points based on correct answers
     int pointsToAwardA = 0;
     int pointsToAwardB = 0;
-    
+
     if (teamAnswers['A'] == correctAnswerIndex) {
       pointsToAwardA = 1;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Team A answered correctly!'), backgroundColor: Colors.green),
+        const SnackBar(
+            content: Text('✅ Team A answered correctly!'),
+            backgroundColor: Colors.green),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Team A answered incorrectly'), backgroundColor: Colors.red),
+        const SnackBar(
+            content: Text('❌ Team A answered incorrectly'),
+            backgroundColor: Colors.red),
       );
     }
-    
+
     if (teamAnswers['B'] == correctAnswerIndex) {
       pointsToAwardB = 1;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Team B answered correctly!'), backgroundColor: Colors.green),
+        const SnackBar(
+            content: Text('✅ Team B answered correctly!'),
+            backgroundColor: Colors.green),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Team B answered incorrectly'), backgroundColor: Colors.red),
+        const SnackBar(
+            content: Text('❌ Team B answered incorrectly'),
+            backgroundColor: Colors.red),
       );
     }
-    
+
     // Update scores
     widget.room.updatePoints(
       widget.room.teamAPoints + pointsToAwardA,
       widget.room.teamBPoints + pointsToAwardB,
     );
-    
+
     setState(() {
       _isTimerRunning = false;
       widget.room.votingInProgress = false;
     });
-    
+
     print('Answer revealed: $correctAnswer');
-    print('Team A answer: ${teamAnswers['A']}, Team B answer: ${teamAnswers['B']}');
+    print(
+        'Team A answer: ${teamAnswers['A']}, Team B answer: ${teamAnswers['B']}');
     print('Points awarded - A: $pointsToAwardA, B: $pointsToAwardB');
   }
 
@@ -249,7 +266,7 @@ class _GameScreenState extends State<GameScreen> {
         children: [
           // Game Header with Scores and Timer
           _buildGameHeader(),
-          
+
           // Main Content Area - Made scrollable
           Expanded(
             child: SingleChildScrollView(
@@ -258,29 +275,29 @@ class _GameScreenState extends State<GameScreen> {
                 children: [
                   // Question Card
                   _buildQuestionCard(currentQuestion),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Answer Options
                   _buildAnswerOptions(currentQuestion),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Vote Button (for players)
                   if (!widget.isHost) _buildVoteButton(),
-                  
+
                   // Team Votes Display (for host)
                   if (widget.isHost) _buildVotesDisplay(),
-                  
+
                   // Add some bottom padding for scroll
                   const SizedBox(height: 20),
                 ],
               ),
             ),
           ),
-          
+
           // Host Controls (only for host) - Fixed height
-          if (widget.isHost) 
+          if (widget.isHost)
             SizedBox(
               height: MediaQuery.of(context).size.height * 0.5, // Fixed height
               child: HostControlPanel(
@@ -343,7 +360,7 @@ class _GameScreenState extends State<GameScreen> {
               ],
             ),
           ),
-          
+
           // Timer
           Column(
             children: [
@@ -372,7 +389,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ],
           ),
-          
+
           // Team B Score
           Expanded(
             child: Column(
@@ -429,9 +446,9 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Question Text
             Text(
               question['question'],
@@ -442,9 +459,9 @@ class _GameScreenState extends State<GameScreen> {
               ),
               textAlign: TextAlign.center,
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             // Question Progress
             Text(
               'Question ${_currentQuestionIndex + 1} of ${_sampleQuestions.length}',
@@ -461,7 +478,7 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildAnswerOptions(Map<String, dynamic> question) {
     final options = List<String>.from(question['options'] ?? []);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -473,7 +490,7 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        
+
         // Answer Options Grid - More compact
         GridView.builder(
           shrinkWrap: true,
@@ -495,7 +512,7 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildAnswerOption(String option, int index) {
     final isSelected = _selectedAnswerIndex == index;
-    
+
     return GestureDetector(
       onTap: () => _handleAnswerSelect(index),
       child: Container(
@@ -562,7 +579,7 @@ class _GameScreenState extends State<GameScreen> {
     // Get real vote counts from GameRoom
     final totalVotesA = widget.room.getTotalVotesForTeam('A');
     final totalVotesB = widget.room.getTotalVotesForTeam('B');
-    
+
     return Card(
       color: const Color(0xFFF8F9FA),
       child: Padding(
@@ -623,10 +640,13 @@ class _GameScreenState extends State<GameScreen> {
             // Add voting status
             const SizedBox(height: 8),
             Text(
-              widget.room.votingInProgress ? 'Voting in progress...' : 'Waiting for host...',
+              widget.room.votingInProgress
+                  ? 'Voting in progress...'
+                  : 'Waiting for host...',
               style: TextStyle(
                 fontSize: 12,
-                color: widget.room.votingInProgress ? Colors.green : Colors.grey,
+                color:
+                    widget.room.votingInProgress ? Colors.green : Colors.grey,
               ),
             ),
           ],
