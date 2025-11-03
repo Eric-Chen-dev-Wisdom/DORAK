@@ -32,6 +32,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   StreamSubscription<GameRoom?>? _roomSubscription;
   bool _isLoading = false;
   bool _navigatedToCategory = false;
+  int _lastShareNonce = -1;
 
   @override
   void initState() {
@@ -216,6 +217,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _shareRoomCode() {
     if (_currentRoom != null) {
+      // Notify others to show the share dialog
+      _lobbyService.signalShare(_currentRoom!.code, widget.user.displayName);
       showDialog(
         context: context,
         builder: (context) => AlertDialog(

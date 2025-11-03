@@ -124,6 +124,11 @@ class LobbyService {
     }
   }
 
+  // Host clicked "Share Room Code"; notify others via Firestore
+  Future<void> signalShare(String roomCode, String by) async {
+    await _firebaseService.signalShare(roomCode, by);
+  }
+
   // Get room stream for real-time updates
   Stream<GameRoom?> getRoomStream(String roomCode) {
     print('🟡 Setting up room stream for: $roomCode');

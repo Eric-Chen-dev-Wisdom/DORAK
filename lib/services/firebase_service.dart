@@ -96,6 +96,22 @@ class FirebaseService {
     }
   }
 
+  // Atomic share signal from host to all clients
+  Future<void> signalShare(String roomCode, String by) async {
+    try {
+      await _clearAuthState(); // emulator-only
+      await _firestore.collection('rooms').doc(roomCode).update({
+        'shareNonce': FieldValue.increment(1),
+        'shareBy': by,
+        'lastSharedAt': FieldValue.serverTimestamp(),
+      });
+      print('✓ Share signal sent for room $roomCode by $by');
+    } catch (e) {
+      print('✗ Error signaling share: $e');
+      rethrow;
+    }
+  }
+
   Future<GameRoom?> getRoom(String roomCode) async {
     try {
       await _clearAuthState(); // emulator-only
@@ -157,4 +173,3 @@ class FirebaseService {
     }
   }
 }
-

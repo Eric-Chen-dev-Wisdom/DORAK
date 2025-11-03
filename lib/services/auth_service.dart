@@ -1,6 +1,7 @@
 // services/auth_service.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/user_model.dart';
 
@@ -18,10 +19,14 @@ class AuthService {
         type: UserType.guest,
         createdAt: DateTime.now(),
       );
-      print('[Auth] Guest login: ${mockUser.displayName} (${mockUser.id})');
+      if (kDebugMode) {
+        print('[Auth] Guest login: ${mockUser.displayName} (${mockUser.id})');
+      }
       return mockUser;
     } catch (e) {
-      print('[Auth] Guest login error: $e');
+      if (kDebugMode) {
+        print('[Auth] Guest login error: $e');
+      }
       return null;
     }
   }
@@ -34,6 +39,19 @@ class AuthService {
 
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
+
+      if (googleAuth.idToken == null) {
+        if (kDebugMode) {
+          print('[Auth] Google sign-in error: idToken is null');
+        }
+        return null;
+      }
+      if (googleAuth.accessToken == null) {
+        if (kDebugMode) {
+          print('[Auth] Google sign-in error: accessToken is null');
+        }
+        return null;
+      }
 
       final OAuthCredential credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
@@ -53,13 +71,20 @@ class AuthService {
         type: UserType.google,
         createdAt: DateTime.now(),
       );
-      print('[Auth] Google sign-in success: ${model.displayName}');
+      if (kDebugMode) {
+        print('[Auth] Google sign-in success: ${model.displayName}');
+      }
       return model;
     } on FirebaseAuthException catch (e) {
-      print('[Auth] FirebaseAuthException (google): ${e.code} - ${e.message}');
+      if (kDebugMode) {
+        print(
+            '[Auth] FirebaseAuthException (google): ${e.code} - ${e.message}');
+      }
       return null;
     } catch (e) {
-      print('[Auth] Google sign-in error: $e');
+      if (kDebugMode) {
+        print('[Auth] Google sign-in error: $e');
+      }
       return null;
     }
   }
@@ -69,13 +94,16 @@ class AuthService {
       await _auth.signOut();
       await _googleSignIn.signOut();
     } catch (e) {
-      print('[Auth] Sign out error: $e');
+      if (kDebugMode) {
+        print('[Auth] Sign out error: $e');
+      }
     }
   }
 
   Future<UserModel?> signInWithApple() async {
-    print('[Auth] Apple Sign-In not implemented yet');
+    if (kDebugMode) {
+      print('[Auth] Apple Sign-In not implemented yet');
+    }
     return null;
   }
 }
-

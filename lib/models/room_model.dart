@@ -22,6 +22,9 @@ class GameRoom {
   String currentQuestionId;
   bool isTimerRunning;
   List<String> usedPowerCards;
+  // UI/event signals
+  int shareNonce;
+  String? shareBy;
 
   GameRoom({
     required this.code,
@@ -42,6 +45,8 @@ class GameRoom {
     this.votingInProgress = false,
     this.correctAnswerIndex,
     required this.voteHistory,
+    this.shareNonce = 0,
+    this.shareBy,
   })  : scores = scores ?? {'teamA': 0, 'teamB': 0},
         usedPowerCards = usedPowerCards ?? [];
 
@@ -164,6 +169,8 @@ class GameRoom {
       'votingInProgress': votingInProgress,
       'correctAnswerIndex': correctAnswerIndex,
       'voteHistory': voteHistory,
+      'shareNonce': shareNonce,
+      'shareBy': shareBy,
     };
   }
 
@@ -227,6 +234,8 @@ class GameRoom {
       correctAnswerIndex: json['correctAnswerIndex'],
       voteHistory:
           parseVoteHistory(json['voteHistory']), // FIXED: Use new parser
+      shareNonce: (json['shareNonce'] as num?)?.toInt() ?? 0,
+      shareBy: json['shareBy'],
     );
   }
 }

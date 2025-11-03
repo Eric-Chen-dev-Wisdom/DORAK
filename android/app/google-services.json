@@ -12,7 +12,28 @@
           "package_name": "com.dorak.test"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "802364174285-qc6ig6pko4usbj1r2d3nlfkqp39ctcsi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dorak.test",
+            "certificate_hash": "1b9cd3d2cad55d61871544539aecc3b7c23d87d6"
+          }
+        },
+        {
+          "client_id": "802364174285-ues13lbovvkq2m5qnutj6rvlkf3silja.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dorak.test",
+            "certificate_hash": "1315b87fbe25729ce771d5d63d52b822ba5873e5"
+          }
+        },
+        {
+          "client_id": "802364174285-7hdasmlueuo073m2mf126v4tk80jmlpu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBoF3zJSfSRC9976aXjBILGBtW2taic-lA"
@@ -20,7 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "802364174285-7hdasmlueuo073m2mf126v4tk80jmlpu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
