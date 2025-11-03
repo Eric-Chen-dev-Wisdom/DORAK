@@ -80,6 +80,18 @@ class LobbyService {
     }
   }
 
+  // Update room state to start the game (category selection phase)
+  Future<void> startGame(GameRoom room) async {
+    try {
+      room.state = GameState.categorySelection;
+      await _firebaseService.updateRoom(room);
+      print('✓ Room ${room.code} moved to categorySelection');
+    } catch (e) {
+      print('✗ Error starting game: $e');
+      rethrow;
+    }
+  }
+
   // Get room stream for real-time updates
   Stream<GameRoom?> getRoomStream(String roomCode) {
     print('🟡 Setting up room stream for: $roomCode');

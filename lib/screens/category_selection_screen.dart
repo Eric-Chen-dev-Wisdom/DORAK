@@ -29,6 +29,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       description: 'Test your general knowledge',
       type: CategoryType.trivia,
       challenges: [],
+      imageAsset: 'assets/images/general_knowledge.png',
     ),
     Category(
       id: '2',
@@ -36,6 +37,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       description: 'Fun questions about family',
       type: CategoryType.trivia,
       challenges: [],
+      imageAsset: 'assets/images/family.png',
     ),
     Category(
       id: '3',
@@ -43,6 +45,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       description: 'Questions about Gulf traditions',
       type: CategoryType.trivia,
       challenges: [],
+      imageAsset: 'assets/images/gulf.png',
     ),
     Category(
       id: '4',
@@ -50,6 +53,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       description: 'Guess movies and TV shows',
       type: CategoryType.trivia,
       challenges: [],
+      imageAsset: 'assets/images/movie.png',
     ),
     Category(
       id: '5',
@@ -57,6 +61,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       description: 'Music trivia and karaoke',
       type: CategoryType.karaoke,
       challenges: [],
+      imageAsset: 'assets/images/music.png',
     ),
     Category(
       id: '6',
@@ -64,6 +69,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       description: 'Hilarious physical challenges',
       type: CategoryType.physical,
       challenges: [],
+      imageAsset: 'assets/images/funny_challenge.png',
     ),
     Category(
       id: '7',
@@ -71,6 +77,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       description: 'Fun for the little ones',
       type: CategoryType.trivia,
       challenges: [],
+      imageAsset: 'assets/images/kids_corner.png',
     ),
     Category(
       id: '8',
@@ -78,6 +85,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       description: 'Fast-paced brain teasers',
       type: CategoryType.trivia,
       challenges: [],
+      imageAsset: 'assets/images/quick_thinking.png',
     ),
   ];
 
@@ -185,7 +193,8 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 1.2,
+                // Fix overflow: slightly reduce aspect ratio for better fit
+                childAspectRatio: 0.90,
               ),
               itemCount: _availableCategories.length,
               itemBuilder: (context, index) {
@@ -222,19 +231,6 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
   }
 
   Widget _buildCategoryCard(Category category, bool isSelected) {
-    IconData getCategoryIcon(CategoryType type) {
-      switch (type) {
-        case CategoryType.trivia:
-          return Icons.quiz;
-        case CategoryType.physical:
-          return Icons.fitness_center;
-        case CategoryType.karaoke:
-          return Icons.music_note;
-        case CategoryType.miniGame:
-          return Icons.videogame_asset;
-      }
-    }
-
     Color getCategoryColor(CategoryType type) {
       switch (type) {
         case CategoryType.trivia:
@@ -268,12 +264,24 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              // Don't use MainAxisAlignment.center, let content expand naturally then clip/ellipsis
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                Icon(
-                  getCategoryIcon(category.type),
-                  color: getCategoryColor(category.type),
-                  size: 32,
+                // Image display for category
+                SizedBox(
+                  height: 100,
+                  width: 90,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      category.imageAsset,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.image_not_supported,
+                          size: 48,
+                          color: Colors.grey),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -283,7 +291,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                     fontWeight: FontWeight.bold,
                     color: AppConstants.primaryBlack,
                   ),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
@@ -297,6 +305,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
+                // If you want an informational icon at the top-right in future, can add as Stack
               ],
             ),
           ),

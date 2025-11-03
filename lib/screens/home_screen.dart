@@ -14,6 +14,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final PageController _pageController = PageController();
+  final List<String> _carouselImages = const [
+    'assets/images/carousel1.png',
+    'assets/images/carousel2.png',
+    'assets/images/carousel3.png',
+  ];
   int _currentPage = 0;
   Timer? _timer;
   bool _isLoggingIn = false; // To prevent multiple presses
@@ -32,21 +37,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startAutoPlay() {
-    _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (_pageController.hasClients) {
-        if (_currentPage < 2) {
-          _pageController.nextPage(
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
-          );
-        } else {
+    // Defer until after first frame so PageView is attached
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Avoid multiple timers
+      _timer?.cancel();
+      _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
+        if (!mounted || !_pageController.hasClients) return;
+        final next = (_currentPage + 1) % _carouselImages.length;
+        try {
           _pageController.animateToPage(
-            0,
+            next,
             duration: const Duration(milliseconds: 500),
             curve: Curves.easeInOut,
           );
+        } catch (_) {
+          // Ignore rare race when controller detaches during dispose
         }
-      }
+      });
     });
   }
 
@@ -192,11 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildImageCarousel() {
-    final List<String> carouselImages = [
-      'assets/images/carousel1.png',
-      'assets/images/carousel2.png',
-      'assets/images/carousel3.png',
-    ];
+    final List<String> carouselImages = _carouselImages;
 
     return SizedBox(
       height: 250,
