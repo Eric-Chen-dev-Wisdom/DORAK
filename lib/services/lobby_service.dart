@@ -1,6 +1,7 @@
 import 'firebase_service.dart';
 import '../models/room_model.dart';
 import '../models/user_model.dart';
+import '../models/category_model.dart';
 import 'dart:math';
 
 class LobbyService {
@@ -77,6 +78,49 @@ class LobbyService {
     } catch (e) {
       print('❌ Error joining room: $e');
       return false;
+    }
+  }
+
+  // Update room state to start the game (category selection phase)
+  Future<void> startGame(GameRoom room) async {
+    try {
+      room.state = GameState.categorySelection;
+      await _firebaseService.updateRoom(room);
+      print('✓ Room ${room.code} moved to categorySelection');
+    } catch (e) {
+      print('✗ Error starting game: $e');
+      rethrow;
+    }
+  }
+
+  // Host updates selected categories live so joiners can see choices
+  Future<void> updateSelectedCategories(
+      String roomCode, List<Category> categories) async {
+    try {
+      final room = await _firebaseService.getRoom(roomCode);
+      if (room == null) throw Exception('Room $roomCode not found');
+      room.selectedCategories = categories;
+      await _firebaseService.updateRoom(room);
+      print('✓ Categories updated (${categories.length}) for $roomCode');
+    } catch (e) {
+      print('✗ Error updating categories: $e');
+      rethrow;
+    }
+  }
+
+  // Finalize categories and transition to inGame for everyone
+  Future<void> finalizeCategoriesAndStart(
+      String roomCode, List<Category> categories) async {
+    try {
+      final room = await _firebaseService.getRoom(roomCode);
+      if (room == null) throw Exception('Room $roomCode not found');
+      room.selectedCategories = categories;
+      room.state = GameState.inGame;
+      await _firebaseService.updateRoom(room);
+      print('✓ Room $roomCode moved to inGame with ${categories.length} categories');
+    } catch (e) {
+      print('✗ Error finalizing categories: $e');
+      rethrow;
     }
   }
 

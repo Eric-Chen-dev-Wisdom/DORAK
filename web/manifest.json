@@ -1,6 +1,6 @@
 {
-    "name": "dorak_game",
-    "short_name": "dorak_game",
+    "name": "DORAK",
+    "short_name": "DORAK",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

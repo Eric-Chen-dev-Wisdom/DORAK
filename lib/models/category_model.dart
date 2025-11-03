@@ -4,6 +4,7 @@ class Category {
   final String description;
   final CategoryType type;
   final List<Challenge> challenges;
+  final String imageAsset; // New: path to the image asset
 
   Category({
     required this.id,
@@ -11,6 +12,7 @@ class Category {
     required this.description,
     required this.type,
     required this.challenges,
+    required this.imageAsset,
   });
 
   Map<String, dynamic> toJson() {
@@ -19,11 +21,11 @@ class Category {
       'name': name,
       'description': description,
       'type': type.toString(),
+      'imageAsset': imageAsset,
       'challenges': challenges.map((challenge) => challenge.toJson()).toList(),
     };
   }
 
-  // Add this missing fromJson factory method
   factory Category.fromJson(Map<String, dynamic> json) {
     return Category(
       id: json['id'] ?? '',
@@ -33,6 +35,7 @@ class Category {
         (e) => e.toString() == json['type'],
         orElse: () => CategoryType.trivia,
       ),
+      imageAsset: json['imageAsset'] ?? 'assets/images/placeholder.png',
       challenges: (json['challenges'] as List?)
               ?.map((challengeJson) => Challenge.fromJson(challengeJson))
               .toList() ??
@@ -55,6 +58,7 @@ class Challenge {
   final String? correctAnswer;
   final String? mediaUrl;
   final ChallengeDifficulty difficulty;
+  final String? imageAsset; // Optionally allow challenge-level images
 
   Challenge({
     required this.id,
@@ -63,6 +67,7 @@ class Challenge {
     this.correctAnswer,
     this.mediaUrl,
     this.difficulty = ChallengeDifficulty.easy,
+    this.imageAsset, // Add to constructor (optional)
   });
 
   Map<String, dynamic> toJson() {
@@ -73,10 +78,10 @@ class Challenge {
       'correctAnswer': correctAnswer,
       'mediaUrl': mediaUrl,
       'difficulty': difficulty.toString(),
+      'imageAsset': imageAsset,
     };
   }
 
-  // Add this missing fromJson factory method
   factory Challenge.fromJson(Map<String, dynamic> json) {
     return Challenge(
       id: json['id'] ?? '',
@@ -88,6 +93,7 @@ class Challenge {
         (e) => e.toString() == json['difficulty'],
         orElse: () => ChallengeDifficulty.easy,
       ),
+      imageAsset: json['imageAsset'],
     );
   }
 }

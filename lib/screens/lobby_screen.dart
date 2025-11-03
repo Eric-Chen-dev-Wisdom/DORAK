@@ -31,6 +31,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   String _selectedTeam = 'A';
   StreamSubscription<GameRoom?>? _roomSubscription;
   bool _isLoading = false;
+  bool _navigatedToCategory = false;
 
   @override
   void initState() {
@@ -65,6 +66,21 @@ class _LobbyScreenState extends State<LobbyScreen> {
           }
         });
       }
+      // Drive navigation based on room state
+      if (room != null && !_navigatedToCategory) {
+        if (room.state == GameState.categorySelection) {
+          _navigatedToCategory = true;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CategorySelectionScreen(
+                room: room,
+                user: widget.user,
+              ),
+            ),
+          );
+        }
+      }
     }, onError: (error) {
       if (mounted) {
         setState(() {
@@ -95,6 +111,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
             _currentRoom = room;
             _isLoading = false;
           });
+          // Navigate host when state changes
+          if (!_navigatedToCategory && room.state == GameState.categorySelection) {
+            _navigatedToCategory = true;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CategorySelectionScreen(
+                  room: room,
+                  user: widget.user,
+                ),
+              ),
+            );
+          }
         }
       });
 
@@ -176,17 +205,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _startGame() {
     if (_currentRoom == null) return;
-
-    // Navigate to category selection first
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CategorySelectionScreen(
-          room: _currentRoom!,
-          user: widget.user,
-        ),
-      ),
-    );
+    // Runtime guard: only host may start
+    if (widget.user.id != _currentRoom!.hostId) {
+      _showError('Only the host can start the game');
+      return;
+    }
+    // Host triggers shared state change; all clients navigate on stream
+    _lobbyService.startGame(_currentRoom!);
   }
 
   void _shareRoomCode() {

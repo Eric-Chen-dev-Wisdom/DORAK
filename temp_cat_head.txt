@@ -95,33 +95,23 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
   ];
 
   final List<Category> _selectedCategories = [];
-  final Set<String> _selectedIds = <String>{};
-  late final Map<String, Category> _catalogById;
 
   bool get _isHost => widget.user.id == widget.room.hostId;
 
   @override
   void initState() {
     super.initState();
-    _catalogById = {for (final c in _availableCategories) c.id: c};
-    // Start with any existing selections (dedup by id)
-    _selectedIds.addAll(widget.room.selectedCategories.map((c) => c.id));
-    _selectedCategories
-      ..clear()
-      ..addAll(_selectedIds.map((id) => _catalogById[id]).whereType<Category>());
+    // Start with any existing selections
+    _selectedCategories.addAll(widget.room.selectedCategories);
     // Everyone listens: host and joiners
     _roomSub = _lobbyService.getRoomStream(widget.room.code).listen((room) {
       if (!mounted || room == null) return;
-      // Reflect live selections from host (by id)
+      // Reflect live selections from host
       setState(() {
-        _selectedIds
-          ..clear()
-          ..addAll(room.selectedCategories.map((c) => c.id));
+        // Replace local view with latest from backend
         _selectedCategories
           ..clear()
-          ..addAll(_selectedIds
-              .map((id) => _catalogById[id])
-              .whereType<Category>());
+          ..addAll(room.selectedCategories);
       });
       // Transition to game for all when host starts
       if (!_navigatedToGame && room.state == GameState.inGame) {
@@ -149,22 +139,17 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
   void _toggleCategory(Category category) {
     if (!_isHost) return; // joiners are read-only here
     setState(() {
-      if (_selectedIds.contains(category.id)) {
-        _selectedIds.remove(category.id);
+      if (_selectedCategories.contains(category)) {
+        _selectedCategories.remove(category);
       } else {
-        if (_selectedIds.length < 8) {
-          _selectedIds.add(category.id);
+        if (_selectedCategories.length < 8) {
+          _selectedCategories.add(category);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Maximum 8 categories allowed')),
           );
         }
       }
-      _selectedCategories
-        ..clear()
-        ..addAll(_selectedIds
-            .map((id) => _catalogById[id])
-            .whereType<Category>());
     });
     // Broadcast live selection so joiners can see
     _lobbyService.updateSelectedCategories(
@@ -173,7 +158,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
 
   void _startGame() {
     if (!_isHost) return;
-    if (_selectedIds.length < 5) {
+    if (_selectedCategories.length < 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select at least 5 categories')),
       );
@@ -236,7 +221,8 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
               itemCount: _availableCategories.length,
               itemBuilder: (context, index) {
                 final category = _availableCategories[index];
-                final isSelected = _selectedIds.contains(category.id);
+                final isSelected = _selectedCategories.contains(category);
+
                 return _buildCategoryCard(category, isSelected);
               },
             ),
@@ -249,13 +235,14 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
               width: double.infinity,
               child: _isHost
                   ? ElevatedButton(
-                      onPressed: _selectedIds.length >= 5 ? _startGame : null,
+                      onPressed:
+                          _selectedCategories.length >= 5 ? _startGame : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF007A3D),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: Text(
-                        'Start Game (${_selectedIds.length}/5)',
+                        'Start Game (${_selectedCategories.length}/5)',
                         style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold),
                       ),
@@ -271,88 +258,3 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       ),
     );
   }
-
-  Widget _buildCategoryCard(Category category, bool isSelected) {
-    Color getCategoryColor(CategoryType type) {
-      switch (type) {
-        case CategoryType.trivia:
-          return Colors.blue;
-        case CategoryType.physical:
-          return Colors.orange;
-        case CategoryType.karaoke:
-          return Colors.purple;
-        case CategoryType.miniGame:
-          return Colors.green;
-      }
-    }
-
-    return GestureDetector(
-      onTap: () => _toggleCategory(category),
-      child: Card(
-        color: isSelected
-            ? getCategoryColor(category.type).withOpacity(0.2)
-            : Colors.white,
-        elevation: 2,
-        child: Container(
-          decoration: isSelected
-              ? BoxDecoration(
-                  border: Border.all(
-                    color: getCategoryColor(category.type),
-                    width: 2,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                )
-              : null,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              // Don't use MainAxisAlignment.center, let content expand naturally then clip/ellipsis
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                // Image display for category
-                SizedBox(
-                  height: 100,
-                  width: 90,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      category.imageAsset,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Icon(
-                          Icons.image_not_supported,
-                          size: 48,
-                          color: Colors.grey),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  category.name,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppConstants.primaryBlack,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  category.description,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                // If you want an informational icon at the top-right in future, can add as Stack
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
