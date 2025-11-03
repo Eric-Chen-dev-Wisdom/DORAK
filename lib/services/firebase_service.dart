@@ -172,4 +172,69 @@ class FirebaseService {
       rethrow;
     }
   }
+  //VOTING SYSTEM
+  Future<void> startVoting(String roomCode) async {
+    try {
+      await _firestore.collection('rooms').doc(roomCode).update({
+        'votingInProgress': true,
+        'teamAVotes': {},
+        'teamBVotes': {},
+      });
+      print('🟢 Voting started for room $roomCode');
+    } catch (e) {
+      print('❌ Error starting voting: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> submitVote(String roomCode, String team, String userId, int answerIndex) async {
+    try {
+      final voteField = team == 'A' ? 'teamAVotes' : 'teamBVotes';
+      await _firestore.collection('rooms').doc(roomCode).update({
+        '$voteField.$userId': answerIndex,
+      });
+      print('✅ $userId voted for option $answerIndex in team $team');
+    } catch (e) {
+      print('❌ Error submitting vote: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getVotes(String roomCode) async {
+    try {
+      final doc = await _firestore.collection('rooms').doc(roomCode).get();
+      final data = doc.data() ?? {};
+      return {
+        'teamAVotes': data['teamAVotes'] ?? {},
+        'teamBVotes': data['teamBVotes'] ?? {},
+      };
+    } catch (e) {
+      print('❌ Error getting votes: $e');
+      return {'teamAVotes': {}, 'teamBVotes': {}};
+    }
+  }
+
+  Future<void> endVoting(String roomCode) async {
+    try {
+      await _firestore.collection('rooms').doc(roomCode).update({
+        'votingInProgress': false,
+      });
+      print('🟥 Voting ended for room $roomCode');
+    } catch (e) {
+      print('❌ Error ending voting: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateTeamPoints(String roomCode, int teamAPoints, int teamBPoints) async {
+    try {
+      await _firestore.collection('rooms').doc(roomCode).update({
+        'teamAPoints': teamAPoints,
+        'teamBPoints': teamBPoints,
+      });
+      print('🏆 Points updated for $roomCode — A: $teamAPoints, B: $teamBPoints');
+    } catch (e) {
+      print('❌ Error updating team points: $e');
+    }
+  }
 }

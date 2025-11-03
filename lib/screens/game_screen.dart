@@ -3,6 +3,8 @@ import '../models/room_model.dart';
 import '../models/user_model.dart';
 import '../widgets/host_control_panel.dart';
 import '../utils/constants.dart';
+import 'result_screen.dart';
+import '../services/firebase_service.dart';
 
 class GameScreen extends StatefulWidget {
   final GameRoom room;
@@ -27,6 +29,10 @@ class _GameScreenState extends State<GameScreen> {
   bool _isTimerRunning = false;
   Map<String, int> _teamVotes = {'A': 0, 'B': 0};
 
+  // Firebase service instance
+  final FirebaseService _firebaseService = FirebaseService();
+
+
   // Sample questions for testing
   final List<Map<String, dynamic>> _sampleQuestions = [
     {
@@ -44,6 +50,8 @@ class _GameScreenState extends State<GameScreen> {
       'category': 'Geography',
     },
   ];
+
+  
 
   @override
   void initState() {
@@ -63,26 +71,27 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void _handleVoteSubmit() {
-    if (_selectedAnswerIndex == -1) return;
+  void _handleVoteSubmit() async {
+  if (_selectedAnswerIndex == -1) return;
 
-    final userTeam =
-        widget.room.teamA.any((user) => user.id == widget.user.id) ? 'A' : 'B';
+  final userTeam =
+      widget.room.teamA.any((u) => u.id == widget.user.id) ? 'A' : 'B';
 
-    // Use the GameRoom's voting system
-    widget.room.submitVote(userTeam, _selectedAnswerIndex, widget.user.id);
+  await _firebaseService.submitVote(
+    widget.room.code,
+    userTeam,
+    widget.user.id,
+    _selectedAnswerIndex,
+  );
 
-    setState(() {
-      // Update local state to reflect the vote
-      _teamVotes[userTeam] = widget.room.getTotalVotesForTeam(userTeam);
-    });
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('Vote submitted for option ${_selectedAnswerIndex + 1}')),
+  );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content:
-              Text('Vote submitted for option ${_selectedAnswerIndex + 1}')),
-    );
-  }
+  print('Vote submitted: team=$userTeam, answer=$_selectedAnswerIndex');
+}
+
+
 
   void _handlePointsAdjust(int points) {
     // The points are already updated in the GameRoom by the host control panel
@@ -165,86 +174,71 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _handleEndGame() {
-    Navigator.pop(context);
-    print('Game ended');
-  }
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ResultScreen(room: widget.room),
+    ),
+  );
+  print('Game ended - navigating to results screen');
+}
 
-  // Add these missing methods:
-  void _handleStartVoting() {
-    setState(() {
-      widget.room.startVoting();
-      _selectedAnswerIndex = -1;
-      _remainingTime = 60;
-      _isTimerRunning = true;
-    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Voting started! Teams can now submit answers.'),
-        backgroundColor: Colors.green,
-      ),
-    );
-    print('Voting started for all teams');
-  }
+  // handle start voting
+  void _handleStartVoting() async {
+  await _firebaseService.startVoting(widget.room.code);
+  setState(() {
+    widget.room.votingInProgress = true;
+    _selectedAnswerIndex = -1;
+    _remainingTime = 60;
+    _isTimerRunning = true;
+  });
 
-  void _handleRevealAnswer() {
-    final currentQuestion = _sampleQuestions[_currentQuestionIndex];
-    final correctAnswerIndex = currentQuestion['correctAnswer'] as int;
-    final correctAnswer = currentQuestion['options'][correctAnswerIndex];
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Voting started! Teams can now submit answers.'),
+      backgroundColor: Colors.green,
+    ),
+  );
+  print('Voting started for room ${widget.room.code}');
+}
 
-    // Get team final answers
-    final teamAnswers = widget.room.getTeamFinalAnswers();
+  // handle reveal answer
+ void _handleRevealAnswer() async {
+  final currentQuestion = _sampleQuestions[_currentQuestionIndex];
+  final correctAnswerIndex = currentQuestion['correctAnswer'] as int;
 
-    // Calculate points based on correct answers
-    int pointsToAwardA = 0;
-    int pointsToAwardB = 0;
+  // Get all votes from Firestore
+  final votes = await _firebaseService.getVotes(widget.room.code);
+  final teamAVotes = votes['teamAVotes'] as Map<String, dynamic>;
+  final teamBVotes = votes['teamBVotes'] as Map<String, dynamic>;
 
-    if (teamAnswers['A'] == correctAnswerIndex) {
-      pointsToAwardA = 1;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('✅ Team A answered correctly!'),
-            backgroundColor: Colors.green),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('❌ Team A answered incorrectly'),
-            backgroundColor: Colors.red),
-      );
-    }
+  int correctA = teamAVotes.values.where((v) => v == correctAnswerIndex).length;
+  int correctB = teamBVotes.values.where((v) => v == correctAnswerIndex).length;
 
-    if (teamAnswers['B'] == correctAnswerIndex) {
-      pointsToAwardB = 1;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('✅ Team B answered correctly!'),
-            backgroundColor: Colors.green),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('❌ Team B answered incorrectly'),
-            backgroundColor: Colors.red),
-      );
-    }
+  int pointsA = widget.room.teamAPoints + correctA;
+  int pointsB = widget.room.teamBPoints + correctB;
 
-    // Update scores
-    widget.room.updatePoints(
-      widget.room.teamAPoints + pointsToAwardA,
-      widget.room.teamBPoints + pointsToAwardB,
-    );
+  await _firebaseService.updateTeamPoints(widget.room.code, pointsA, pointsB);
+  await _firebaseService.endVoting(widget.room.code);
 
-    setState(() {
-      _isTimerRunning = false;
-      widget.room.votingInProgress = false;
-    });
+  setState(() {
+  _isTimerRunning = false;
+  widget.room.updatePoints(pointsA, pointsB);
+  widget.room.votingInProgress = false;
+});
 
-    print('Answer revealed: $correctAnswer');
-    print(
-        'Team A answer: ${teamAnswers['A']}, Team B answer: ${teamAnswers['B']}');
-    print('Points awarded - A: $pointsToAwardA, B: $pointsToAwardB');
-  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text('Answer revealed! Team A: +$correctA, Team B: +$correctB'),
+      backgroundColor: Colors.blue,
+    ),
+  );
+
+  print('Answer revealed: correct=$correctAnswerIndex, A+$correctA, B+$correctB');
+}
+
 
   @override
   Widget build(BuildContext context) {
