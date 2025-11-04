@@ -72,29 +72,31 @@ class FirebaseService {
     }
   }
 
-  Future<void> joinRoom(String roomCode, UserModel user, String team) async {
-    try {
-      await _clearAuthState(); // emulator-only
+ Future<void> joinRoom(String roomCode, UserModel user, String team) async {
+  try {
+    await _clearAuthState(); // emulator-only
 
-      final roomRef = _firestore.collection('rooms').doc(roomCode);
+    final roomRef = _firestore.collection('rooms').doc(roomCode);
 
-      // Check if room exists
-      final roomDoc = await roomRef.get();
-      if (!roomDoc.exists) {
-        throw Exception('Room $roomCode does not exist');
-      }
-
-      // Update the specific team array
-      await roomRef.update({
-        'team$team': FieldValue.arrayUnion([user.toJson()])
-      });
-
-      print('�o. User ${user.displayName} joined team $team in EMULATOR');
-    } catch (e) {
-      print('�?O Error joining room: $e');
-      rethrow;
+    // Check if room exists
+    final roomDoc = await roomRef.get();
+    if (!roomDoc.exists) {
+      throw Exception('Room $roomCode does not exist');
     }
+
+    // Update the specific team array and add lastEvent message
+    await roomRef.update({
+      'team$team': FieldValue.arrayUnion([user.toJson()]),
+      'lastEvent': '🔵 ${user.displayName} joined Team $team',
+    });
+
+    print('✅ ${user.displayName} joined team $team in room $roomCode');
+  } catch (e) {
+    print('❌ Error joining room: $e');
+    rethrow;
   }
+}
+
 
   // Atomic share signal from host to all clients
   Future<void> signalShare(String roomCode, String by) async {
@@ -149,29 +151,42 @@ class FirebaseService {
   }
 
   // Remove user from room
-  Future<void> leaveRoom(String roomCode, String userId, String team) async {
-    try {
-      await _clearAuthState(); // emulator-only
+ Future<void> leaveRoom(String roomCode, String userId, String team) async {
+  try {
+    await _clearAuthState(); // emulator-only
 
-      final roomRef = _firestore.collection('rooms').doc(roomCode);
-      final roomDoc = await roomRef.get();
+    final roomRef = _firestore.collection('rooms').doc(roomCode);
+    final roomDoc = await roomRef.get();
 
-      if (roomDoc.exists) {
-        final data = roomDoc.data()!;
-        final teamList =
-            List<Map<String, dynamic>>.from(data['team$team'] ?? []);
-        final updatedTeam =
-            teamList.where((user) => user['id'] != userId).toList();
+    if (roomDoc.exists) {
+      final data = roomDoc.data()!;
+      final teamList =
+          List<Map<String, dynamic>>.from(data['team$team'] ?? []);
 
-        await roomRef.update({'team$team': updatedTeam});
+      // Find the leaving user (to include their name)
+      final leavingUser = teamList.firstWhere(
+        (user) => user['id'] == userId,
+        orElse: () => {},
+      );
 
-        print('�o. User $userId left team $team');
-      }
-    } catch (e) {
-      print('�?O Error leaving room: $e');
-      rethrow;
+      final updatedTeam =
+          teamList.where((user) => user['id'] != userId).toList();
+
+      await roomRef.update({
+        'team$team': updatedTeam,
+        'lastEvent': leavingUser.isNotEmpty
+            ? '🔴 ${leavingUser['displayName']} left Team $team'
+            : 'A user left Team $team',
+      });
+
+      print('🚪 ${leavingUser['displayName']} left team $team');
     }
+  } catch (e) {
+    print('❌ Error leaving room: $e');
+    rethrow;
   }
+}
+
   //VOTING SYSTEM
   Future<void> startVoting(String roomCode) async {
     try {

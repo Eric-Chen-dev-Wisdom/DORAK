@@ -25,6 +25,8 @@ class GameRoom {
   // UI/event signals
   int shareNonce;
   String? shareBy;
+  final String? lastEvent;
+
 
   GameRoom({
     required this.code,
@@ -47,6 +49,7 @@ class GameRoom {
     required this.voteHistory,
     this.shareNonce = 0,
     this.shareBy,
+    this.lastEvent,
   })  : scores = scores ?? {'teamA': 0, 'teamB': 0},
         usedPowerCards = usedPowerCards ?? [];
 
@@ -171,6 +174,8 @@ class GameRoom {
       'voteHistory': voteHistory,
       'shareNonce': shareNonce,
       'shareBy': shareBy,
+      'lastEvent': lastEvent,
+
     };
   }
 
@@ -236,6 +241,8 @@ class GameRoom {
           parseVoteHistory(json['voteHistory']), // FIXED: Use new parser
       shareNonce: (json['shareNonce'] as num?)?.toInt() ?? 0,
       shareBy: json['shareBy'],
+      lastEvent: json['lastEvent'], 
+
     );
   }
 }
