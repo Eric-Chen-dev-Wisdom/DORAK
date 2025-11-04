@@ -10,6 +10,7 @@ import 'screens/signup_screen.dart';
 import 'screens/category_selection_screen.dart';
 import 'screens/game_screen.dart';
 import 'screens/lobby_guest_screen.dart';
+import 'screens/admin/admin_dashboard.dart';
 import 'models/user_model.dart';
 import 'models/room_model.dart';
 // firebase
@@ -46,6 +47,7 @@ class DorakApp extends StatelessWidget {
         AppRoutes.home: (context) => const HomeScreen(),
         AppRoutes.login: (context) => const LoginScreen(),
         AppRoutes.signup: (context) => const SignUpScreen(),
+        AppRoutes.admin: (context) => const AdminDashboard(),
       },
 
       onGenerateRoute: (settings) {

@@ -56,10 +56,15 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       final user = credential.user;
       if (user != null) {
-        NavigationService.navigateTo(
-          AppRoutes.lobby,
-          arguments: {'firebaseUser': user},
-        );
+        // Route admin email directly to Admin Dashboard
+        if ((user.email ?? '').toLowerCase() == 'demo@demo.com') {
+          NavigationService.navigateTo(AppRoutes.admin);
+        } else {
+          NavigationService.navigateTo(
+            AppRoutes.lobby,
+            arguments: {'firebaseUser': user},
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       setState(() {

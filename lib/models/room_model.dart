@@ -174,8 +174,7 @@ class GameRoom {
       'voteHistory': voteHistory,
       'shareNonce': shareNonce,
       'shareBy': shareBy,
-      'lastEvent': lastEvent,
-
+      'lastEvent': lastEvent, 
     };
   }
 
@@ -241,8 +240,7 @@ class GameRoom {
           parseVoteHistory(json['voteHistory']), // FIXED: Use new parser
       shareNonce: (json['shareNonce'] as num?)?.toInt() ?? 0,
       shareBy: json['shareBy'],
-      lastEvent: json['lastEvent'], 
-
+      lastEvent: json['lastEvent'],
     );
   }
 }

@@ -29,9 +29,7 @@ class _GameScreenState extends State<GameScreen> {
   bool _isTimerRunning = false;
   Map<String, int> _teamVotes = {'A': 0, 'B': 0};
 
-  // Firebase service instance
   final FirebaseService _firebaseService = FirebaseService();
-
 
   // Sample questions for testing
   final List<Map<String, dynamic>> _sampleQuestions = [
@@ -51,8 +49,6 @@ class _GameScreenState extends State<GameScreen> {
     },
   ];
 
-  
-
   @override
   void initState() {
     super.initState();
@@ -71,27 +67,26 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void _handleVoteSubmit() async {
-  if (_selectedAnswerIndex == -1) return;
+  void _handleVoteSubmit() {
+    if (_selectedAnswerIndex == -1) return;
 
-  final userTeam =
-      widget.room.teamA.any((u) => u.id == widget.user.id) ? 'A' : 'B';
+    final userTeam =
+        widget.room.teamA.any((user) => user.id == widget.user.id) ? 'A' : 'B';
 
-  await _firebaseService.submitVote(
-    widget.room.code,
-    userTeam,
-    widget.user.id,
-    _selectedAnswerIndex,
-  );
+    // Use the GameRoom's voting system
+    widget.room.submitVote(userTeam, _selectedAnswerIndex, widget.user.id);
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Vote submitted for option ${_selectedAnswerIndex + 1}')),
-  );
+    setState(() {
+      // Update local state to reflect the vote
+      _teamVotes[userTeam] = widget.room.getTotalVotesForTeam(userTeam);
+    });
 
-  print('Vote submitted: team=$userTeam, answer=$_selectedAnswerIndex');
-}
-
-
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content:
+              Text('Vote submitted for option ${_selectedAnswerIndex + 1}')),
+    );
+  }
 
   void _handlePointsAdjust(int points) {
     // The points are already updated in the GameRoom by the host control panel
@@ -183,8 +178,7 @@ class _GameScreenState extends State<GameScreen> {
   print('Game ended - navigating to results screen');
 }
 
-
-  // handle start voting
+  // handle Start voting
   void _handleStartVoting() async {
   await _firebaseService.startVoting(widget.room.code);
   setState(() {
@@ -203,8 +197,8 @@ class _GameScreenState extends State<GameScreen> {
   print('Voting started for room ${widget.room.code}');
 }
 
-  // handle reveal answer
- void _handleRevealAnswer() async {
+
+  void _handleRevealAnswer() async {
   final currentQuestion = _sampleQuestions[_currentQuestionIndex];
   final correctAnswerIndex = currentQuestion['correctAnswer'] as int;
 
@@ -227,7 +221,6 @@ class _GameScreenState extends State<GameScreen> {
   widget.room.updatePoints(pointsA, pointsB);
   widget.room.votingInProgress = false;
 });
-
 
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(

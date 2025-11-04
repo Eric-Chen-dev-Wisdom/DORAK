@@ -9,4 +9,5 @@ class AppRoutes {
   static const String game = '/game';
   static const String results = '/results';
   static const String lobbyGuest = '/lobby_guest';
+  static const String admin = '/admin';
 }

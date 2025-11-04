@@ -1,6 +1,7 @@
 // screens/category_selection_screen.dart
 import 'package:flutter/material.dart';
 import '../models/category_model.dart';
+import '../data/default_categories.dart';
 import '../models/room_model.dart';
 import '../models/user_model.dart';
 import '../utils/constants.dart';
@@ -27,72 +28,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
   final LobbyService _lobbyService = LobbyService();
   StreamSubscription<GameRoom?>? _roomSub;
   bool _navigatedToGame = false;
-  final List<Category> _availableCategories = [
-    Category(
-      id: '1',
-      name: 'General Knowledge',
-      description: 'Test your general knowledge',
-      type: CategoryType.trivia,
-      challenges: [],
-      imageAsset: 'assets/images/general_knowledge.png',
-    ),
-    Category(
-      id: '2',
-      name: 'Family Life',
-      description: 'Fun questions about family',
-      type: CategoryType.trivia,
-      challenges: [],
-      imageAsset: 'assets/images/family.png',
-    ),
-    Category(
-      id: '3',
-      name: 'Gulf Culture',
-      description: 'Questions about Gulf traditions',
-      type: CategoryType.trivia,
-      challenges: [],
-      imageAsset: 'assets/images/gulf.png',
-    ),
-    Category(
-      id: '4',
-      name: 'Movies & TV',
-      description: 'Guess movies and TV shows',
-      type: CategoryType.trivia,
-      challenges: [],
-      imageAsset: 'assets/images/movie.png',
-    ),
-    Category(
-      id: '5',
-      name: 'Music',
-      description: 'Music trivia and karaoke',
-      type: CategoryType.karaoke,
-      challenges: [],
-      imageAsset: 'assets/images/music.png',
-    ),
-    Category(
-      id: '6',
-      name: 'Funny Challenges',
-      description: 'Hilarious physical challenges',
-      type: CategoryType.physical,
-      challenges: [],
-      imageAsset: 'assets/images/funny_challenge.png',
-    ),
-    Category(
-      id: '7',
-      name: 'Kids Corner',
-      description: 'Fun for the little ones',
-      type: CategoryType.trivia,
-      challenges: [],
-      imageAsset: 'assets/images/kids_corner.png',
-    ),
-    Category(
-      id: '8',
-      name: 'Quick Thinking',
-      description: 'Fast-paced brain teasers',
-      type: CategoryType.trivia,
-      challenges: [],
-      imageAsset: 'assets/images/quick_thinking.png',
-    ),
-  ];
+  final List<Category> _availableCategories = defaultCategories();
 
   final List<Category> _selectedCategories = [];
   final Set<String> _selectedIds = <String>{};
