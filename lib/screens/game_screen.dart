@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import '../models/room_model.dart';
 import '../models/user_model.dart';
 import '../widgets/host_control_panel.dart';
@@ -36,30 +37,51 @@ class _GameScreenState extends State<GameScreen> {
 
   List<Map<String, dynamic>> _questions = [];
   bool _loadingQuestions = true;
+  StreamSubscription? _roomSub;
+  int _displayPointsA = 0;
+  int _displayPointsB = 0;
 
-  // Load questions from Firestore when the game starts
+  // Load questions prepared by host, fallback to Firestore if missing
   Future<void> _loadQuestions() async {
+    // If host already prepared questions, use them
+    if (widget.room.preparedQuestions.isNotEmpty) {
+      setState(() {
+        _questions = widget.room.preparedQuestions;
+        _loadingQuestions = false;
+      });
+      return;
+    }
+
+    // Fallback: load everything (legacy)
     final selectedCategories = widget.room.selectedCategories;
     final List<Map<String, dynamic>> loadedQuestions = [];
-
     for (final category in selectedCategories) {
       final snap = await FirebaseFirestore.instance
           .collection('categories')
           .doc(category.id)
           .collection('challenges')
           .get();
-
       for (final doc in snap.docs) {
         final data = doc.data();
-        data['id'] = doc.id;
-        data['category'] = category.name;
-        data['categoryId'] = category.id;
-        loadedQuestions.add(data);
+        final options = (data['options'] as List?)?.cast<String>() ?? const [];
+        final correct = data['correctAnswer'];
+        int correctIndex = -1;
+        if (correct is int) {
+          correctIndex = correct;
+        } else if (correct is String && options.isNotEmpty) {
+          correctIndex = options.indexOf(correct);
+        }
+        loadedQuestions.add({
+          'id': doc.id,
+          'category': category.name,
+          'categoryId': category.id,
+          'question': data['question'] ?? '',
+          'options': options,
+          'correctAnswer': correctIndex,
+        });
       }
     }
-
     loadedQuestions.shuffle();
-
     setState(() {
       _questions = loadedQuestions;
       _loadingQuestions = false;
@@ -71,13 +93,51 @@ class _GameScreenState extends State<GameScreen> {
     super.initState();
     _remainingTime = widget.room.currentTimer;
     _isTimerRunning = widget.room.isTimerRunning;
+    _displayPointsA = widget.room.teamAPoints;
+    _displayPointsB = widget.room.teamBPoints;
 
     _loadQuestions(); // Load Firestore questions
 
-    // Initialize voting state
-    if (!widget.room.votingInProgress && widget.isHost) {
+    // Sync current question and game state across clients
+    _roomSub = _firebaseService.getRoomStream(widget.room.code).listen((snap) {
+      final data = snap.data();
+      if (data == null) return;
+      final idx = (data['currentRound'] as num?)?.toInt() ?? 0;
+      final state = data['state'] as String?;
+      if (mounted) {
+        setState(() {
+          _currentQuestionIndex =
+              idx.clamp(0, _questions.isEmpty ? 0 : _questions.length - 1);
+          final scores = data['scores'] as Map<String, dynamic>?;
+          if (scores != null) {
+            _displayPointsA =
+                (scores['teamA'] as num?)?.toInt() ?? _displayPointsA;
+            _displayPointsB =
+                (scores['teamB'] as num?)?.toInt() ?? _displayPointsB;
+          }
+        });
+      }
+      if (state == 'GameState.gameComplete' && mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ResultScreen(room: widget.room, user: widget.user),
+          ),
+        );
+      }
+    });
+
+    // Initialize voting state (derive host from room.hostId)
+    final bool isHost = widget.user.id == widget.room.hostId;
+    if (!widget.room.votingInProgress && isHost) {
       widget.room.startVoting();
     }
+  }
+
+  @override
+  void dispose() {
+    _roomSub?.cancel();
+    super.dispose();
   }
 
   void _handleAnswerSelect(int index) {
@@ -86,17 +146,16 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void _handleVoteSubmit() {
+  void _handleVoteSubmit() async {
     if (_selectedAnswerIndex == -1) return;
+    // Guard: host cannot vote
+    if (widget.user.id == widget.room.hostId) return;
 
     final userTeam =
         widget.room.teamA.any((u) => u.id == widget.user.id) ? 'A' : 'B';
 
-    widget.room.submitVote(userTeam, _selectedAnswerIndex, widget.user.id);
-
-    setState(() {
-      _teamVotes[userTeam] = widget.room.getTotalVotesForTeam(userTeam);
-    });
+    await _firebaseService.submitVote(
+        widget.room.code, userTeam, widget.user.id, _selectedAnswerIndex);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -116,33 +175,14 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void _handleNextQuestion() {
+  void _handleNextQuestion() async {
     if (_questions.isEmpty) return;
-
-    setState(() {
-      _currentQuestionIndex =
-          (_currentQuestionIndex + 1) % _questions.length;
-      _selectedAnswerIndex = -1;
-      _remainingTime = 60;
-      _teamVotes = {'A': 0, 'B': 0};
-      widget.room.startVoting();
-      _isTimerRunning = true;
-    });
+    await _firebaseService.nextQuestion(widget.room.code, _questions.length);
   }
 
-  void _handleSkipQuestion() {
+  void _handleSkipQuestion() async {
     if (_questions.isEmpty) return;
-
-    setState(() {
-      _currentQuestionIndex =
-          (_currentQuestionIndex + 1) % _questions.length;
-      _selectedAnswerIndex = -1;
-      _remainingTime = 60;
-      _teamVotes = {'A': 0, 'B': 0};
-      widget.room.startVoting();
-      _isTimerRunning = true;
-    });
-
+    await _firebaseService.nextQuestion(widget.room.code, _questions.length);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Question skipped!'),
@@ -183,14 +223,14 @@ class _GameScreenState extends State<GameScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => ResultScreen(room: widget.room),
+        builder: (context) => ResultScreen(room: widget.room, user: widget.user),
       ),
     );
   }
 
   // Host starts voting
   void _handleStartVoting() async {
-    if (!widget.isHost) return;
+    if (widget.user.id != widget.room.hostId) return;
 
     await _firebaseService.startVoting(widget.room.code);
     setState(() {
@@ -211,7 +251,7 @@ class _GameScreenState extends State<GameScreen> {
   void _handleRevealAnswer() async {
     if (_questions.isEmpty) return;
     final currentQuestion = _questions[_currentQuestionIndex];
-    final correctAnswerIndex = currentQuestion['correctAnswer'] as int;
+    final correctAnswerIndex = (currentQuestion['correctAnswer'] as int?) ?? -1;
 
     final votes = await _firebaseService.getVotes(widget.room.code);
     final teamAVotes = votes['teamAVotes'] as Map<String, dynamic>;
@@ -263,6 +303,14 @@ class _GameScreenState extends State<GameScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          if (widget.isHost)
+            IconButton(
+              tooltip: 'Host Controls',
+              icon: const Icon(Icons.tune),
+              onPressed: _openHostMenu,
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -283,23 +331,33 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ),
           ),
-          if (widget.isHost)
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.5,
-              child: HostControlPanel(
-                room: widget.room,
-                onPointsAdjust: _handlePointsAdjust,
-                onTimerAdjust: _handleTimerAdjust,
-                onNextQuestion: _handleNextQuestion,
-                onSkipQuestion: _handleSkipQuestion,
-                onPowerCardUsed: _handlePowerCardUsed,
-                onEndGame: _handleEndGame,
-                onStartVoting: _handleStartVoting,
-                onRevealAnswer: _handleRevealAnswer,
-              ),
-            ),
+          // Host controls moved to AppBar menu
         ],
       ),
+    );
+  }
+
+  void _openHostMenu() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final height = MediaQuery.of(context).size.height * 0.6;
+        return SizedBox(
+          height: height,
+          child: HostControlPanel(
+            room: widget.room,
+            onPointsAdjust: _handlePointsAdjust,
+            onTimerAdjust: _handleTimerAdjust,
+            onNextQuestion: _handleNextQuestion,
+            onSkipQuestion: _handleSkipQuestion,
+            onPowerCardUsed: _handlePowerCardUsed,
+            onEndGame: _handleEndGame,
+            onStartVoting: _handleStartVoting,
+            onRevealAnswer: _handleRevealAnswer,
+          ),
+        );
+      },
     );
   }
 
@@ -315,7 +373,7 @@ class _GameScreenState extends State<GameScreen> {
                 const Text('Team A',
                     style: TextStyle(
                         fontWeight: FontWeight.bold, color: Color(0xFFCE1126))),
-                Text('${widget.room.teamAPoints}',
+                Text('$_displayPointsA',
                     style: const TextStyle(
                         fontSize: 20, fontWeight: FontWeight.bold)),
                 Text('${widget.room.teamA.length} players',
@@ -345,7 +403,7 @@ class _GameScreenState extends State<GameScreen> {
                 const Text('Team B',
                     style: TextStyle(
                         fontWeight: FontWeight.bold, color: Color(0xFF007A3D))),
-                Text('${widget.room.teamBPoints}',
+                Text('$_displayPointsB',
                     style: const TextStyle(
                         fontSize: 20, fontWeight: FontWeight.bold)),
                 Text('${widget.room.teamB.length} players',
@@ -366,8 +424,7 @@ class _GameScreenState extends State<GameScreen> {
         child: Column(
           children: [
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: const Color(0xFFCE1126).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(16),

@@ -11,6 +11,7 @@ import 'screens/category_selection_screen.dart';
 import 'screens/game_screen.dart';
 import 'screens/lobby_guest_screen.dart';
 import 'screens/admin/admin_dashboard.dart';
+import 'screens/BoardSlideShow.dart';
 import 'models/user_model.dart';
 import 'models/room_model.dart';
 // firebase
@@ -39,11 +40,12 @@ class DorakApp extends StatelessWidget {
       title: 'DORAK - Family Game',
       theme: AppTheme.lightTheme,
       navigatorKey: NavigationService.navigatorKey,
-      initialRoute: AppRoutes.home,
+      // Show onboarding slideshow first
+      initialRoute: '/',
 
       // Define routes
       routes: {
-        '/': (context) => const HomeScreen(),
+        '/': (context) => const BoardSlideShowWidget(),
         AppRoutes.home: (context) => const HomeScreen(),
         AppRoutes.login: (context) => const LoginScreen(),
         AppRoutes.signup: (context) => const SignUpScreen(),

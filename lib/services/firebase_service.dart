@@ -10,7 +10,8 @@ class FirebaseService {
   // =========================================================
   // ROOM STREAMING
   // =========================================================
-  Stream<DocumentSnapshot<Map<String, dynamic>>> getRoomStream(String roomCode) {
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getRoomStream(
+      String roomCode) {
     print('📡 Subscribing to room stream for: $roomCode');
     return _firestore
         .collection('rooms')
@@ -18,12 +19,44 @@ class FirebaseService {
         .snapshots()
         .handleError((error) async {
       print('⚠️ Room stream error: $error');
+
       if (error.toString().contains('UNAUTHENTICATED') ||
           error.toString().contains('INVALID_REFRESH_TOKEN')) {
         print('🧹 Clearing auth state (emulator only)');
         await _clearAuthState();
       }
     });
+  }
+
+  // Advance to next question and toggle voting
+  Future<void> nextQuestion(String roomCode, int totalQuestions) async {
+    try {
+      await _firestore.runTransaction((txn) async {
+        final ref = _firestore.collection('rooms').doc(roomCode);
+        final snap = await txn.get(ref);
+        if (!snap.exists) return;
+        final data = snap.data() ?? {};
+        final current = (data['currentRound'] as num?)?.toInt() ?? 0;
+        final next = current + 1;
+        if (next >= totalQuestions) {
+          txn.update(ref, {
+            'state': 'GameState.gameComplete',
+            'votingInProgress': false,
+            'isTimerRunning': false,
+          });
+        } else {
+          txn.update(ref, {
+            'currentRound': next,
+            'votingInProgress': true,
+            'teamAVotes': {},
+            'teamBVotes': {},
+            'isTimerRunning': true,
+          });
+        }
+      });
+    } catch (e) {
+      print('??O Error moving to next question: $e');
+    }
   }
 
   // =========================================================
@@ -79,83 +112,83 @@ class FirebaseService {
   // =========================================================
   static const int ROOM_MAX_PLAYERS = 20;
 
-  Future<void> safeJoinRoom(String roomCode, UserModel user, String team) async {
-  final roomRef = _firestore.collection('rooms').doc(roomCode);
-  final roomDoc = await roomRef.get();
-  if (!roomDoc.exists) throw Exception('Room $roomCode does not exist');
+  Future<void> safeJoinRoom(
+      String roomCode, UserModel user, String team) async {
+    final roomRef = _firestore.collection('rooms').doc(roomCode);
+    final roomDoc = await roomRef.get();
+    if (!roomDoc.exists) throw Exception('Room $roomCode does not exist');
 
-  final data = roomDoc.data()!;
-  final teamA = List.from(data['teamA'] ?? []);
-  final teamB = List.from(data['teamB'] ?? []);
-  final total = teamA.length + teamB.length;
+    final data = roomDoc.data()!;
+    final teamA = List.from(data['teamA'] ?? []);
+    final teamB = List.from(data['teamB'] ?? []);
+    final total = teamA.length + teamB.length;
 
-  final alreadyInRoom = teamA.any((u) => u['id'] == user.id) ||
-      teamB.any((u) => u['id'] == user.id);
+    final alreadyInRoom = teamA.any((u) => u['id'] == user.id) ||
+        teamB.any((u) => u['id'] == user.id);
 
-  if (alreadyInRoom) {
+    if (alreadyInRoom) {
+      await roomRef.update({
+        'teamA':
+            teamA.map((u) => u['id'] == user.id ? user.toJson() : u).toList(),
+        'teamB':
+            teamB.map((u) => u['id'] == user.id ? user.toJson() : u).toList(),
+        'lastEvent': '${user.displayName} rejoined the room',
+      });
+      print('🔁 ${user.displayName} rejoined $roomCode');
+      return;
+    }
+
+    if (total >= ROOM_MAX_PLAYERS) {
+      throw Exception('Room is full');
+    }
+
+    // Add user and broadcast event
     await roomRef.update({
-      'teamA': teamA.map((u) => u['id'] == user.id ? user.toJson() : u).toList(),
-      'teamB': teamB.map((u) => u['id'] == user.id ? user.toJson() : u).toList(),
-      'lastEvent': '${user.displayName} rejoined the room',
+      'team$team': FieldValue.arrayUnion([user.toJson()]),
+      'lastEvent': '${user.displayName} joined Team $team',
     });
-    print('🔁 ${user.displayName} rejoined $roomCode');
-    return;
+
+    print('✅ ${user.displayName} joined Team $team in $roomCode');
   }
-
-  if (total >= ROOM_MAX_PLAYERS) {
-    throw Exception('Room is full');
-  }
-
-  // Add user and broadcast event
-  await roomRef.update({
-    'team$team': FieldValue.arrayUnion([user.toJson()]),
-    'lastEvent': '${user.displayName} joined Team $team',
-  });
-
-  print('✅ ${user.displayName} joined Team $team in $roomCode');
-}
 
   Future<void> leaveRoom(String roomCode, String userId, String team) async {
-  try {
-    await _clearAuthState();
-    final roomRef = _firestore.collection('rooms').doc(roomCode);
-    final doc = await roomRef.get();
+    try {
+      await _clearAuthState();
+      final roomRef = _firestore.collection('rooms').doc(roomCode);
+      final doc = await roomRef.get();
 
-    if (!doc.exists) return;
+      if (!doc.exists) return;
 
-    final data = doc.data()!;
-    final teamList = List<Map<String, dynamic>>.from(data['team$team'] ?? []);
-    final leavingUser = teamList.firstWhere(
-      (u) => u['id'] == userId,
-      orElse: () => {'displayName': 'A player'},
-    );
+      final data = doc.data()!;
+      final teamList = List<Map<String, dynamic>>.from(data['team$team'] ?? []);
+      final leavingUser = teamList.firstWhere(
+        (u) => u['id'] == userId,
+        orElse: () => {'displayName': 'A player'},
+      );
 
-    final updated = teamList.where((user) => user['id'] != userId).toList();
+      final updated = teamList.where((user) => user['id'] != userId).toList();
 
-    await roomRef.update({
-      'team$team': updated,
-      'lastEvent': '${leavingUser['displayName']} left Team $team',
-    });
+      await roomRef.update({
+        'team$team': updated,
+        'lastEvent': '${leavingUser['displayName']} left Team $team',
+      });
 
-    print('👋 ${leavingUser['displayName']} left Team $team ($roomCode)');
-  } catch (e) {
-    print('❌ Error leaving room: $e');
-    rethrow;
+      print('👋 ${leavingUser['displayName']} left Team $team ($roomCode)');
+    } catch (e) {
+      print('❌ Error leaving room: $e');
+      rethrow;
+    }
   }
-}
 
   // =========================================================
   // CHAT SYSTEM
   // =========================================================
-  Future<void> sendChatMessage(String roomCode, Map<String, dynamic> message) async {
-    await _firestore
-        .collection('rooms')
-        .doc(roomCode)
-        .collection('chat')
-        .add({
-          ...message,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+  Future<void> sendChatMessage(
+      String roomCode, Map<String, dynamic> message) async {
+    await _firestore.collection('rooms').doc(roomCode).collection('chat').add({
+      ...message,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getChatStream(String roomCode,
@@ -233,8 +266,8 @@ class FirebaseService {
       String roomCode, int teamAPoints, int teamBPoints) async {
     try {
       await _firestore.collection('rooms').doc(roomCode).update({
-        'teamAPoints': teamAPoints,
-        'teamBPoints': teamBPoints,
+        'scores.teamA': teamAPoints,
+        'scores.teamB': teamBPoints,
       });
       print('🏆 Updated points — A: $teamAPoints, B: $teamBPoints');
     } catch (e) {

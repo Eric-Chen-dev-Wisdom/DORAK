@@ -131,6 +131,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: OutlinedButton(
                           onPressed: _isLoggingIn ? null : _handleGuestLogin,
                           style: OutlinedButton.styleFrom(
+                            backgroundColor:
+                                const Color.fromARGB(255, 255, 255, 255),
                             foregroundColor: AppConstants.primaryRed,
                             side: const BorderSide(color: Color(0xFFCE1126)),
                             padding: const EdgeInsets.all(16),

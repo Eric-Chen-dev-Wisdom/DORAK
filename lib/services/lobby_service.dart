@@ -113,6 +113,66 @@ class LobbyService {
     }
   }
 
+  // Prepare questions per host settings and start game for everyone
+  Future<void> prepareQuestionsAndStart({
+    required String roomCode,
+    required List<Category> categories,
+    required String difficulty, // 'all'|'easy'|'medium'|'hard'
+    required int count,
+  }) async {
+    try {
+      final room = await _firebaseService.getRoom(roomCode);
+      if (room == null) throw Exception('Room not found');
+
+      final List<Map<String, dynamic>> pool = [];
+      for (final cat in categories) {
+        final snap = await FirebaseFirestore.instance
+            .collection('categories')
+            .doc(cat.id)
+            .collection('challenges')
+            .get();
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final diffStr = (data['difficulty'] as String?) ?? '';
+          final matches = difficulty == 'all' ||
+              diffStr.toLowerCase().contains(difficulty.toLowerCase());
+          if (!matches) continue;
+          final options = (data['options'] as List?)?.cast<String>() ?? const [];
+          final correct = data['correctAnswer'];
+          int correctIndex = -1;
+          if (correct is int) {
+            correctIndex = correct;
+          } else if (correct is String && options.isNotEmpty) {
+            correctIndex = options.indexOf(correct);
+          }
+          pool.add({
+            'id': doc.id,
+            'categoryId': cat.id,
+            'category': cat.name,
+            'question': data['question'] ?? '',
+            'options': options,
+            'correctAnswer': correctIndex,
+            'difficulty': diffStr,
+          });
+        }
+      }
+
+      pool.shuffle();
+      final selected = pool.take(count.clamp(1, pool.length)).toList();
+
+      room.selectedCategories = categories;
+      room.selectedDifficulty = difficulty;
+      room.questionCount = selected.length;
+      room.preparedQuestions = selected;
+      room.state = GameState.inGame;
+      await _firebaseService.updateRoom(room);
+      print('dY"� Prepared ${selected.length} questions (diff=$difficulty) and started');
+    } catch (e) {
+      print('�?O Error preparing questions: $e');
+      rethrow;
+    }
+  }
+
   // =========================================================
   // CHAT WRAPPERS
   // =========================================================

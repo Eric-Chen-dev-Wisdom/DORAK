@@ -25,8 +25,11 @@ class GameRoom {
   // UI/event signals
   int shareNonce;
   String? shareBy;
-  final String? lastEvent;
-
+  String? lastEvent;
+  // Game preparation by host
+  int questionCount;
+  String selectedDifficulty; // 'all', 'easy', 'medium', 'hard'
+  List<Map<String, dynamic>> preparedQuestions;
 
   GameRoom({
     required this.code,
@@ -50,8 +53,14 @@ class GameRoom {
     this.shareNonce = 0,
     this.shareBy,
     this.lastEvent,
+    int? questionCount,
+    String? selectedDifficulty,
+    List<Map<String, dynamic>>? preparedQuestions,
   })  : scores = scores ?? {'teamA': 0, 'teamB': 0},
-        usedPowerCards = usedPowerCards ?? [];
+        usedPowerCards = usedPowerCards ?? [],
+        questionCount = questionCount ?? 10,
+        selectedDifficulty = selectedDifficulty ?? 'all',
+        preparedQuestions = preparedQuestions ?? [];
 
   factory GameRoom.createNew({
     required String code,
@@ -174,7 +183,10 @@ class GameRoom {
       'voteHistory': voteHistory,
       'shareNonce': shareNonce,
       'shareBy': shareBy,
-      'lastEvent': lastEvent, 
+      'lastEvent': lastEvent,
+      'questionCount': questionCount,
+      'selectedDifficulty': selectedDifficulty,
+      'preparedQuestions': preparedQuestions,
     };
   }
 
@@ -241,6 +253,10 @@ class GameRoom {
       shareNonce: (json['shareNonce'] as num?)?.toInt() ?? 0,
       shareBy: json['shareBy'],
       lastEvent: json['lastEvent'],
+      questionCount: (json['questionCount'] as num?)?.toInt() ?? 10,
+      selectedDifficulty: (json['selectedDifficulty'] ?? 'all') as String,
+      preparedQuestions: List<Map<String, dynamic>>.from(
+          (json['preparedQuestions'] as List?) ?? const []),
     );
   }
 }

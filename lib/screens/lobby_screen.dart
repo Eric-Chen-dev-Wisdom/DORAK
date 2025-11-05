@@ -60,7 +60,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
         _currentRoom = room;
       });
 
-      if (room != null && room.lastEvent != null && room.lastEvent != _lastEventShown) {
+      if (room != null &&
+          room.lastEvent != null &&
+          room.lastEvent != _lastEventShown) {
         _lastEventShown = room.lastEvent;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -72,7 +74,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
       }
 
       // Navigation trigger
-      if (room != null && !_navigatedToCategory && room.state == GameState.categorySelection) {
+      if (room != null &&
+          !_navigatedToCategory &&
+          room.state == GameState.categorySelection) {
         _navigatedToCategory = true;
         Navigator.push(
           context,
@@ -99,14 +103,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
         _nicknameController.text.isEmpty ? 'Guest' : _nicknameController.text,
       );
 
-      _roomSubscription = _lobbyService.getRoomStream(newRoom.code).listen((room) {
+      _roomSubscription =
+          _lobbyService.getRoomStream(newRoom.code).listen((room) {
         if (!mounted) return;
         if (room != null) {
           setState(() {
             _currentRoom = room;
             _isLoading = false;
           });
-          if (!_navigatedToCategory && room.state == GameState.categorySelection) {
+          if (!_navigatedToCategory &&
+              room.state == GameState.categorySelection) {
             _navigatedToCategory = true;
             Navigator.push(
               context,
@@ -290,25 +296,45 @@ class _LobbyScreenState extends State<LobbyScreen> {
       );
 
   Widget _createRoomCard() => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              const Icon(Icons.add_circle_outline,
-                  size: 40, color: Color(0xFFCE1126)),
-              const SizedBox(height: 12),
-              const Text('Create New Room',
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: 230,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.add_circle_outline,
+                  size: 50,
+                  color: Color(0xFF007A3D),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Create New Room',
                   style: TextStyle(
-                      fontSize: AppConstants.titleSize,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: _createNewRoom,
-                style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12)),
-                child: const Text('Create Room'),
-              ),
-            ],
+                    fontSize: AppConstants.titleSize + 4,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _createNewRoom,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      textStyle: const TextStyle(fontSize: 18),
+                    ),
+                    child: const Text('Create Room'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -337,12 +363,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
               const SizedBox(height: 12),
               _teamSelector(),
               const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _joinRoomWithCode,
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF007A3D),
-                    padding: const EdgeInsets.symmetric(vertical: 12)),
-                child: const Text('Join Room'),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _joinRoomWithCode,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    textStyle: const TextStyle(fontSize: 18),
+                  ),
+                  child: const Text('Join Room'),
+                ),
               ),
             ],
           ),
@@ -392,11 +422,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
         Expanded(
           child: Row(
             children: [
-              _buildTeamCard('A', _currentRoom!.teamA,
-                  const Color(0xFFFFE5E5), const Color(0xFFCE1126)),
+              _buildTeamCard('A', _currentRoom!.teamA, const Color(0xFFFFE5E5),
+                  const Color(0xFFCE1126)),
               const SizedBox(width: 12),
-              _buildTeamCard('B', _currentRoom!.teamB,
-                  const Color(0xFFE5F4E5), const Color(0xFF007A3D)),
+              _buildTeamCard('B', _currentRoom!.teamB, const Color(0xFFE5F4E5),
+                  const Color(0xFF007A3D)),
             ],
           ),
         ),
@@ -407,37 +437,49 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Widget _roomInfoCard(bool isHost) => Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              const Text('Room Created!',
-                  style: TextStyle(
-                      fontSize: AppConstants.titleSize,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(
-                'Code: ${_currentRoom!.code}',
-                style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFCE1126),
-                    letterSpacing: 3),
-              ),
-              const SizedBox(height: 12),
-              if (isHost)
-                ElevatedButton.icon(
-                  onPressed: _startGame,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Start Game'),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF007A3D)),
+          child: SizedBox(
+            width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Room Created!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: AppConstants.titleSize,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                  'Code: ${_currentRoom!.code}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFCE1126),
+                      letterSpacing: 3),
                 ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _shareRoomCode,
-                icon: const Icon(Icons.share),
-                label: const Text('Share Room Code'),
-              ),
-            ],
+                const SizedBox(height: 12),
+                if (isHost)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _startGame,
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Start Game'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF007A3D)),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _shareRoomCode,
+                    icon: const Icon(Icons.share),
+                    label: const Text('Share Room Code'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );

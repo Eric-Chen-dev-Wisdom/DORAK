@@ -33,6 +33,8 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
   final List<Category> _selectedCategories = [];
   final Set<String> _selectedIds = <String>{};
   late final Map<String, Category> _catalogById;
+  String _difficulty = 'all'; // 'all','easy','medium','hard'
+  int _questionCount = 10;    // host-chosen count
 
   bool get _isHost => widget.user.id == widget.room.hostId;
 
@@ -109,15 +111,19 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
 
   void _startGame() {
     if (!_isHost) return;
-    if (_selectedIds.length < 5) {
+    if (_selectedIds.length < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least 5 categories')),
+        const SnackBar(content: Text('Please select at least 1 category')),
       );
       return;
     }
-    // Persist categories and advance state; listeners will navigate
-    _lobbyService.finalizeCategoriesAndStart(
-        widget.room.code, List<Category>.from(_selectedCategories));
+    // Prepare questions with host settings; listeners will navigate
+    _lobbyService.prepareQuestionsAndStart(
+      roomCode: widget.room.code,
+      categories: List<Category>.from(_selectedCategories),
+      difficulty: _difficulty,
+      count: _questionCount,
+    );
   }
 
   @override
@@ -159,6 +165,39 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
           ),
 
           // Categories Grid
+          if (_isHost)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _difficulty,
+                      items: const [
+                        DropdownMenuItem(value: 'all', child: Text('All')),
+                        DropdownMenuItem(value: 'easy', child: Text('Easy')),
+                        DropdownMenuItem(value: 'medium', child: Text('Medium')),
+                        DropdownMenuItem(value: 'hard', child: Text('Hard')),
+                      ],
+                      onChanged: (v) => setState(() => _difficulty = v ?? 'all'),
+                      decoration: const InputDecoration(labelText: 'Difficulty'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      value: _questionCount,
+                      items: const [5, 10, 15, 20]
+                          .map((n) => DropdownMenuItem(value: n, child: Text('$n questions')))
+                          .toList(),
+                      onChanged: (v) => setState(() => _questionCount = v ?? 10),
+                      decoration: const InputDecoration(labelText: 'Number of Questions'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.all(16),
