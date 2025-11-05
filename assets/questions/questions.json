@@ -1,0 +1,17 @@
+[
+    {
+      "id": "1",
+      "question": "Which animal is known as the 'Ship of the Desert'?",
+      "options": ["Elephant", "Camel", "Horse", "Lion"],
+      "correctAnswer": 1,
+      "categoryId": "animals"
+    },
+    {
+      "id": "2",
+      "question": "What is the capital of France?",
+      "options": ["London", "Berlin", "Paris", "Madrid"],
+      "correctAnswer": 2,
+      "categoryId": "geography"
+    }
+  ]
+  

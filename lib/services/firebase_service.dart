@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 import 'firebase_init.dart';
 import '../models/room_model.dart';
 import '../models/user_model.dart';
@@ -8,192 +7,193 @@ import '../models/user_model.dart';
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Enhanced error handling for auth issues
-  Stream<DocumentSnapshot> getRoomStream(String roomCode) {
-    print('dYY� Getting room stream for: $roomCode');
+  // =========================================================
+  // ROOM STREAMING
+  // =========================================================
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getRoomStream(String roomCode) {
+    print('📡 Subscribing to room stream for: $roomCode');
     return _firestore
         .collection('rooms')
         .doc(roomCode)
         .snapshots()
-        .handleError((error) {
-      print('�?O Room stream error: $error');
-
-      // Check if it's an auth error and try to recover (emulator-only)
+        .handleError((error) async {
+      print('⚠️ Room stream error: $error');
       if (error.toString().contains('UNAUTHENTICATED') ||
           error.toString().contains('INVALID_REFRESH_TOKEN')) {
-        print('dY", Auth error detected');
-        if (FirebaseInit.useEmulators) {
-          print('dY", Clearing auth state (emulator only)');
-          _clearAuthState();
-        }
+        print('🧹 Clearing auth state (emulator only)');
+        await _clearAuthState();
       }
-      throw error;
     });
   }
 
+  // =========================================================
+  // ROOM CREATION / UPDATE / FETCH
+  // =========================================================
   Future<void> createRoom(GameRoom room) async {
     try {
-      print('dYY� Creating room in Firestore: ${room.code}');
-
-      // Only clear auth state on emulator to avoid logging out real users
+      print('🟢 Creating room: ${room.code}');
       await _clearAuthState();
-
       await _firestore.collection('rooms').doc(room.code).set(room.toJson());
-      print('�o. Room created in EMULATOR: ${room.code}');
-
-      // Verify the room was created
-      final createdDoc =
-          await _firestore.collection('rooms').doc(room.code).get();
-      print('�o. Room verification: ${createdDoc.exists}');
+      print('✅ Room created: ${room.code}');
     } catch (e) {
-      print('�?O Error creating room: $e');
-
-      // If it's an auth error, clear state and retry once (emulator-only)
-      if (e.toString().contains('UNAUTHENTICATED') ||
-          e.toString().contains('INVALID_REFRESH_TOKEN')) {
-        print('dY", Auth error, clearing state and retrying...');
-        await _clearAuthState();
-        await _firestore.collection('rooms').doc(room.code).set(room.toJson());
-        print('�o. Room created after retry: ${room.code}');
-      } else {
-        rethrow;
-      }
+      print('❌ Error creating room: $e');
+      rethrow;
     }
   }
 
   Future<void> updateRoom(GameRoom room) async {
     try {
-      await _clearAuthState(); // emulator-only
       await _firestore.collection('rooms').doc(room.code).update(room.toJson());
-      print('�o. Room updated in EMULATOR: ${room.code}');
+      print('✅ Room updated: ${room.code}');
     } catch (e) {
-      print('�?O Error updating room: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> joinRoom(String roomCode, UserModel user, String team) async {
-    try {
-      await _clearAuthState(); // emulator-only
-
-      final roomRef = _firestore.collection('rooms').doc(roomCode);
-
-      // Check if room exists
-      final roomDoc = await roomRef.get();
-      if (!roomDoc.exists) {
-        throw Exception('Room $roomCode does not exist');
-      }
-
-      // Update the specific team array
-      await roomRef.update({
-        'team$team': FieldValue.arrayUnion([user.toJson()])
-      });
-
-      print('�o. User ${user.displayName} joined team $team in EMULATOR');
-    } catch (e) {
-      print('�?O Error joining room: $e');
-      rethrow;
-    }
-  }
-
-  // Atomic share signal from host to all clients
-  Future<void> signalShare(String roomCode, String by) async {
-    try {
-      await _clearAuthState(); // emulator-only
-      await _firestore.collection('rooms').doc(roomCode).update({
-        'shareNonce': FieldValue.increment(1),
-        'shareBy': by,
-        'lastSharedAt': FieldValue.serverTimestamp(),
-      });
-      print('✓ Share signal sent for room $roomCode by $by');
-    } catch (e) {
-      print('✗ Error signaling share: $e');
+      print('❌ Error updating room: $e');
       rethrow;
     }
   }
 
   Future<GameRoom?> getRoom(String roomCode) async {
     try {
-      await _clearAuthState(); // emulator-only
       final doc = await _firestore.collection('rooms').doc(roomCode).get();
-      if (doc.exists) {
+      if (doc.exists && doc.data() != null) {
         return GameRoom.fromJson(doc.data()!);
       }
       return null;
     } catch (e) {
-      print('�?O Error getting room: $e');
+      print('❌ Error fetching room: $e');
       return null;
     }
   }
 
   Future<bool> doesRoomExist(String roomCode) async {
     try {
-      await _clearAuthState(); // emulator-only
       final doc = await _firestore.collection('rooms').doc(roomCode).get();
       return doc.exists;
     } catch (e) {
-      print('�?O Error checking room: $e');
+      print('❌ Error checking room existence: $e');
       return false;
     }
   }
 
-  // Helper method to clear auth state
-  Future<void> _clearAuthState() async {
-    if (!FirebaseInit.useEmulators) return; // Never sign out on production
-    try {
-      await FirebaseAuth.instance.signOut();
-      await Future.delayed(const Duration(milliseconds: 100));
-    } catch (e) {
-      print('Auth clear error: $e');
-    }
+  // =========================================================
+  // PLAYER JOIN / LEAVE
+  // =========================================================
+  static const int ROOM_MAX_PLAYERS = 20;
+
+  Future<void> safeJoinRoom(String roomCode, UserModel user, String team) async {
+  final roomRef = _firestore.collection('rooms').doc(roomCode);
+  final roomDoc = await roomRef.get();
+  if (!roomDoc.exists) throw Exception('Room $roomCode does not exist');
+
+  final data = roomDoc.data()!;
+  final teamA = List.from(data['teamA'] ?? []);
+  final teamB = List.from(data['teamB'] ?? []);
+  final total = teamA.length + teamB.length;
+
+  final alreadyInRoom = teamA.any((u) => u['id'] == user.id) ||
+      teamB.any((u) => u['id'] == user.id);
+
+  if (alreadyInRoom) {
+    await roomRef.update({
+      'teamA': teamA.map((u) => u['id'] == user.id ? user.toJson() : u).toList(),
+      'teamB': teamB.map((u) => u['id'] == user.id ? user.toJson() : u).toList(),
+      'lastEvent': '${user.displayName} rejoined the room',
+    });
+    print('🔁 ${user.displayName} rejoined $roomCode');
+    return;
   }
 
-  // Remove user from room
+  if (total >= ROOM_MAX_PLAYERS) {
+    throw Exception('Room is full');
+  }
+
+  // Add user and broadcast event
+  await roomRef.update({
+    'team$team': FieldValue.arrayUnion([user.toJson()]),
+    'lastEvent': '${user.displayName} joined Team $team',
+  });
+
+  print('✅ ${user.displayName} joined Team $team in $roomCode');
+}
+
   Future<void> leaveRoom(String roomCode, String userId, String team) async {
-    try {
-      await _clearAuthState(); // emulator-only
+  try {
+    await _clearAuthState();
+    final roomRef = _firestore.collection('rooms').doc(roomCode);
+    final doc = await roomRef.get();
 
-      final roomRef = _firestore.collection('rooms').doc(roomCode);
-      final roomDoc = await roomRef.get();
+    if (!doc.exists) return;
 
-      if (roomDoc.exists) {
-        final data = roomDoc.data()!;
-        final teamList =
-            List<Map<String, dynamic>>.from(data['team$team'] ?? []);
-        final updatedTeam =
-            teamList.where((user) => user['id'] != userId).toList();
+    final data = doc.data()!;
+    final teamList = List<Map<String, dynamic>>.from(data['team$team'] ?? []);
+    final leavingUser = teamList.firstWhere(
+      (u) => u['id'] == userId,
+      orElse: () => {'displayName': 'A player'},
+    );
 
-        await roomRef.update({'team$team': updatedTeam});
+    final updated = teamList.where((user) => user['id'] != userId).toList();
 
-        print('�o. User $userId left team $team');
-      }
-    } catch (e) {
-      print('�?O Error leaving room: $e');
-      rethrow;
-    }
+    await roomRef.update({
+      'team$team': updated,
+      'lastEvent': '${leavingUser['displayName']} left Team $team',
+    });
+
+    print('👋 ${leavingUser['displayName']} left Team $team ($roomCode)');
+  } catch (e) {
+    print('❌ Error leaving room: $e');
+    rethrow;
   }
-  // Voting system
-   Future<void> startVoting(String roomCode) async {
+}
+
+  // =========================================================
+  // CHAT SYSTEM
+  // =========================================================
+  Future<void> sendChatMessage(String roomCode, Map<String, dynamic> message) async {
+    await _firestore
+        .collection('rooms')
+        .doc(roomCode)
+        .collection('chat')
+        .add({
+          ...message,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getChatStream(String roomCode,
+      {int limit = 50}) {
+    return _firestore
+        .collection('rooms')
+        .doc(roomCode)
+        .collection('chat')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots();
+  }
+
+  // =========================================================
+  // VOTING SYSTEM
+  // =========================================================
+  Future<void> startVoting(String roomCode) async {
     try {
       await _firestore.collection('rooms').doc(roomCode).update({
         'votingInProgress': true,
         'teamAVotes': {},
         'teamBVotes': {},
       });
-      print('🟢 Voting started for room $roomCode');
+      print('🟢 Voting started for $roomCode');
     } catch (e) {
       print('❌ Error starting voting: $e');
       rethrow;
     }
   }
 
-  Future<void> submitVote(String roomCode, String team, String userId, int answerIndex) async {
+  Future<void> submitVote(
+      String roomCode, String team, String userId, int answerIndex) async {
     try {
       final voteField = team == 'A' ? 'teamAVotes' : 'teamBVotes';
       await _firestore.collection('rooms').doc(roomCode).update({
         '$voteField.$userId': answerIndex,
       });
-      print('✅ $userId voted for option $answerIndex in team $team');
+      print('✅ $userId voted for $answerIndex on team $team');
     } catch (e) {
       print('❌ Error submitting vote: $e');
       rethrow;
@@ -219,22 +219,56 @@ class FirebaseService {
       await _firestore.collection('rooms').doc(roomCode).update({
         'votingInProgress': false,
       });
-      print('🟥 Voting ended for room $roomCode');
+      print('🟥 Voting ended for $roomCode');
     } catch (e) {
       print('❌ Error ending voting: $e');
       rethrow;
     }
   }
 
-  Future<void> updateTeamPoints(String roomCode, int teamAPoints, int teamBPoints) async {
+  // =========================================================
+  // SCORING
+  // =========================================================
+  Future<void> updateTeamPoints(
+      String roomCode, int teamAPoints, int teamBPoints) async {
     try {
       await _firestore.collection('rooms').doc(roomCode).update({
         'teamAPoints': teamAPoints,
         'teamBPoints': teamBPoints,
       });
-      print('🏆 Points updated for $roomCode — A: $teamAPoints, B: $teamBPoints');
+      print('🏆 Updated points — A: $teamAPoints, B: $teamBPoints');
     } catch (e) {
       print('❌ Error updating team points: $e');
+    }
+  }
+
+  // =========================================================
+  // SHARE SIGNAL
+  // =========================================================
+  Future<void> signalShare(String roomCode, String by) async {
+    try {
+      await _firestore.collection('rooms').doc(roomCode).update({
+        'shareNonce': FieldValue.increment(1),
+        'shareBy': by,
+        'lastSharedAt': FieldValue.serverTimestamp(),
+      });
+      print('📢 Share signal sent for $roomCode by $by');
+    } catch (e) {
+      print('❌ Error signaling share: $e');
+      rethrow;
+    }
+  }
+
+  // =========================================================
+  // AUTH HELPER
+  // =========================================================
+  Future<void> _clearAuthState() async {
+    if (!FirebaseInit.useEmulators) return;
+    try {
+      await FirebaseAuth.instance.signOut();
+      await Future.delayed(const Duration(milliseconds: 100));
+    } catch (e) {
+      print('Auth clear error: $e');
     }
   }
 }

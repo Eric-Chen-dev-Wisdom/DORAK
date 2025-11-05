@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 import '../models/category_model.dart';
 import '../data/default_categories.dart';
 import '../data/default_questions.dart';
