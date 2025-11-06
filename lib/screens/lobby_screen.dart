@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:share_plus/share_plus.dart';
 import 'dart:async';
 import '../utils/constants.dart';
 import '../services/navigation_service.dart';
@@ -26,6 +28,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final LobbyService _lobbyService = LobbyService();
   final TextEditingController _roomCodeController = TextEditingController();
   final TextEditingController _nicknameController = TextEditingController();
+  final TextEditingController _chatController = TextEditingController();
 
   GameRoom? _currentRoom;
   String _selectedTeam = 'A';
@@ -45,16 +48,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   @override
-  void dispose() {
-    _roomSubscription?.cancel();
-    super.dispose();
-  }
+void dispose() {
+  _roomSubscription?.cancel();
+  _chatController.dispose();
+  super.dispose();
+}
 
   void _joinExistingRoom(String roomCode) {
     setState(() => _isLoading = true);
 
     _roomSubscription = _lobbyService.getRoomStream(roomCode).listen((room) {
       if (!mounted) return;
+  
       setState(() {
         _isLoading = false;
         _currentRoom = room;
@@ -175,51 +180,89 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   void _startGame() {
-    if (_currentRoom == null) return;
-    if (widget.user.id != _currentRoom!.hostId) {
-      _showError('Only the host can start the game.');
-      return;
-    }
-    _lobbyService.startGame(_currentRoom!);
+  if (_currentRoom == null) return;
+  
+  // ADD PLAYER COUNT VALIDATION
+  final totalPlayers = _currentRoom!.teamA.length + _currentRoom!.teamB.length;
+  if (totalPlayers < 2) {
+    _showError('Need at least 2 players to start the game!');
+    return;
   }
+  
+  if (widget.user.id != _currentRoom!.hostId) {
+    _showError('Only the host can start the game.');
+    return;
+  }
+  
+  // ADD CONFIRMATION DIALOG
+  _showStartGameConfirmation();
+}
 
-  void _shareRoomCode() {
-    if (_currentRoom == null) return;
-
-    _lobbyService.signalShare(_currentRoom!.code, widget.user.displayName);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Room Code'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _currentRoom!.code,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFCE1126),
-                letterSpacing: 3,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Share this code with your friends!',
-              textAlign: TextAlign.center,
-            ),
-          ],
+// ADD THIS NEW METHOD FOR CONFIRMATION
+void _showStartGameConfirmation() {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Start Game?'),
+      content: Text('Are you ready to begin the game with ${_currentRoom!.teamA.length + _currentRoom!.teamB.length} players?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel'),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+            _lobbyService.startGame(_currentRoom!);
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+          child: Text('Start Game!'),
+        ),
+      ],
+    ),
+  );
+}
+
+  void _shareRoomCode() async {
+  if (_currentRoom == null) return;
+
+  try {
+    print('🔄 Starting share process for room: ${_currentRoom!.code}');
+    
+    // 1. Update Firestore signal (for UI updates)
+    await _lobbyService.signalShare(_currentRoom!.code, widget.user.displayName);
+    
+    // 2. Copy to clipboard instead of native share
+    final roomCode = _currentRoom!.code;
+    await _copyToClipboard(roomCode);
+    
+    // 3. Show success message
+    _showSuccess('Room code $roomCode copied to clipboard! Share it with your friends.');
+    
+    print('✅ Room code copied to clipboard: $roomCode');
+    
+  } catch (e) {
+    print('❌ Error sharing room: $e');
+    _showError('Failed to share room code. Please try again.');
   }
+}
+
+// ADD THIS NEW HELPER METHOD:
+Future<void> _copyToClipboard(String text) async {
+  // Import this at the top: import 'package:flutter/services.dart';
+  await Clipboard.setData(ClipboardData(text: text));
+}
+
+// ADD THIS SUCCESS MESSAGE METHOD:
+void _showSuccess(String msg) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(msg),
+      backgroundColor: Colors.green,
+      duration: Duration(seconds: 3),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -419,14 +462,55 @@ class _LobbyScreenState extends State<LobbyScreen> {
       children: [
         _roomInfoCard(isHost),
         const SizedBox(height: 16),
+        // ADD THIS NEW WIDGET FOR REAL-TIME STATUS:
+      Container(
+        padding: EdgeInsets.all(12),
+        margin: EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: Colors.green[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.green[200]!),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.circle, color: Colors.green, size: 16),
+            SizedBox(width: 8),
+            Text(
+              'Live - ${_currentRoom!.teamA.length + _currentRoom!.teamB.length} players connected',
+              style: TextStyle(
+                color: Colors.green[700],
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
         Expanded(
-          child: Row(
+          child: Column(
             children: [
-              _buildTeamCard('A', _currentRoom!.teamA, const Color(0xFFFFE5E5),
-                  const Color(0xFFCE1126)),
-              const SizedBox(width: 12),
-              _buildTeamCard('B', _currentRoom!.teamB, const Color(0xFFE5F4E5),
-                  const Color(0xFF007A3D)),
+              // Teams Row - Reduced height to make space for chat
+              Expanded(
+                flex: 2, // Teams take 2/3 of space
+                child: Row(
+                  children: [
+                    _buildTeamCard('A', _currentRoom!.teamA,
+                        const Color(0xFFFFE5E5), const Color(0xFFCE1126)),
+                    const SizedBox(width: 12),
+                    _buildTeamCard('B', _currentRoom!.teamB,
+                        const Color(0xFFE5F4E5), const Color(0xFF007A3D)),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Chat Section - Takes 1/3 of space
+              Expanded(
+                flex: 1,
+                child: _buildChatSection(),
+              ),
             ],
           ),
         ),
@@ -534,4 +618,205 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ),
         ),
       );
+  Widget _buildChatSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            // Chat Header
+            Row(
+              children: [
+                Icon(Icons.chat, size: 20, color: Colors.grey[600]),
+                SizedBox(width: 8),
+                Text(
+                  'Live Chat',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                Spacer(),
+                // Host toggle for chat (only show for host)
+                if (_currentRoom!.hostId == widget.user.id) _buildChatToggle(),
+              ],
+            ),
+
+            SizedBox(height: 8),
+
+            // Chat Messages
+            Expanded(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: _lobbyService.getChatStream(_currentRoom!.code),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Chat error: ${snapshot.error}'));
+                  }
+
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+
+                  final messages = snapshot.data?.docs ?? [];
+
+                  if (messages.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No messages yet\nStart chatting!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    reverse: true, // Newest at bottom
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final message = messages[index].data();
+                      return _buildChatMessage(message);
+                    },
+                  );
+                },
+              ),
+            ),
+
+            SizedBox(height: 8),
+
+            // Chat Input
+            _buildChatInput(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChatToggle() {
+    // We'll add this state later - for now just show the UI
+    bool chatEnabled = true; // Default enabled
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          chatEnabled ? 'ON' : 'OFF',
+          style: TextStyle(
+            color: chatEnabled ? Colors.green : Colors.red,
+            fontSize: 12,
+          ),
+        ),
+        SizedBox(width: 4),
+        Switch(
+          value: chatEnabled,
+          onChanged: (value) {
+            // We'll implement this in Phase 2
+            _showInfo('Chat controls coming soon!');
+          },
+          activeColor: Colors.green,
+        ),
+      ],
+    );
+  }
+
+  void _showInfo(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: Colors.blue),
+    );
+  }
+
+  Widget _buildChatMessage(Map<String, dynamic> message) {
+    final isMe = message['senderId'] == widget.user.id;
+
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!isMe)
+            CircleAvatar(
+              radius: 12,
+              backgroundColor: Colors.grey[300],
+              child: Text(
+                message['senderName']?[0] ?? '?',
+                style: TextStyle(fontSize: 10, color: Colors.black),
+              ),
+            ),
+          Expanded(
+            child: Container(
+              margin: EdgeInsets.symmetric(horizontal: 8),
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isMe ? Color(0xFFE3F2FD) : Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!isMe)
+                    Text(
+                      message['senderName'] ?? 'Unknown',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  Text(
+                    message['text'] ?? '',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isMe)
+            CircleAvatar(
+              radius: 12,
+              backgroundColor: Color(0xFFCE1126),
+              child: Text(
+                'You',
+                style: TextStyle(fontSize: 8, color: Colors.white),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatInput() {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _chatController,
+            decoration: InputDecoration(
+              hintText: 'Type a message...',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            onSubmitted: (text) => _sendChatMessage(),
+          ),
+        ),
+        SizedBox(width: 8),
+        IconButton(
+          icon: Icon(Icons.send, color: Color(0xFFCE1126)),
+          onPressed: _sendChatMessage,
+        ),
+      ],
+    );
+  }
+
+  void _sendChatMessage() {
+    final text = _chatController.text.trim();
+    if (text.isEmpty) return;
+
+    _lobbyService.sendChat(
+      _currentRoom!.code,
+      widget.user.id,
+      widget.user.displayName,
+      text,
+    );
+
+    _chatController.clear();
+  }
 }
