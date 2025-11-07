@@ -27,12 +27,9 @@ class QuestionService {
 
   // Categories
   Stream<List<Category>> watchCategories() {
-    return _db
-        .collection('categories')
-        .orderBy('name')
-        .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => Category.fromJson({...?d.data(), 'id': d.id}))
+    return _db.collection('categories').orderBy('name').snapshots().map(
+        (snap) => snap.docs
+            .map((d) => Category.fromJson({...d.data(), 'id': d.id}))
             .toList());
   }
 
@@ -73,10 +70,8 @@ class QuestionService {
       final defs = defaultQuestionsByCategory();
       for (final entry in defs.entries) {
         final catId = entry.key;
-        final qCol = _db
-            .collection('categories')
-            .doc(catId)
-            .collection('challenges');
+        final qCol =
+            _db.collection('categories').doc(catId).collection('challenges');
         final existing = await qCol.limit(1).get();
         if (existing.docs.isNotEmpty) {
           continue; // already has questions
@@ -103,10 +98,8 @@ class QuestionService {
       final defs = defaultQuestionsByCategory();
       for (final entry in defs.entries) {
         final catId = entry.key;
-        final qCol = _db
-            .collection('categories')
-            .doc(catId)
-            .collection('challenges');
+        final qCol =
+            _db.collection('categories').doc(catId).collection('challenges');
 
         // Read existing ids
         final existingSnap = await qCol.get();
@@ -142,7 +135,7 @@ class QuestionService {
         .orderBy('updatedAt', descending: true)
         .snapshots()
         .map((snap) => snap.docs
-            .map((d) => Challenge.fromJson({...?d.data(), 'id': d.id}))
+            .map((d) => Challenge.fromJson({...d.data(), 'id': d.id}))
             .toList());
   }
 

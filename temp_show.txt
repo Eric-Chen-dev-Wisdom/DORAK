@@ -1,9 +1,12 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/routes.dart';
-// import '../services/locale_service.dart';
+import '../services/locale_service.dart';
+import 'package:flutter/material.dart';
 
 /// if user tap the continue button the center of page slides like carousel in
+/// web
 class BoardSlideShowWidget extends StatefulWidget {
   const BoardSlideShowWidget({super.key});
 
@@ -14,10 +17,7 @@ class BoardSlideShowWidget extends StatefulWidget {
   State<BoardSlideShowWidget> createState() => _BoardSlideShowWidgetState();
 }
 
-class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {
-  String get _localeCode => Localizations.localeOf(context).languageCode;
-  bool get isArabic => _localeCode == 'ar';
-  String t(String en, String ar) => isArabic ? ar : en;
+class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {\n  String get _localeCode => Localizations.localeOf(context).languageCode;\n  bool get isArabic => _localeCode == 'ar';\n  String t(String en, String ar) => isArabic ? ar : en;
   final scaffoldKey = GlobalKey<ScaffoldState>();
   final PageController _pageController = PageController();
   int _currentPage = 0;
@@ -69,10 +69,8 @@ class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {
                         _buildPage(
                           context,
                           // icon: Icons.home_outlined,
-                          title: t('Welcome to DORAK!', 'مرحبًا بك في دوراك!'),
-                          description: t(
-                              'A family party game inspired by Seen Jeem. Challenge your friends and family, split into teams, and answer fun questions together.',
-                              'لعبة عائلية مستوحاة من سين جيم. تحدَّ أصدقاءك وعائلتك، انقسموا إلى فرق وأجيبوا على الأسئلة الممتعة معًا.'),
+                          title: t('Welcome to DORAK!','????? ??? ?? ?????!'),
+                          description: t('A family party game inspired by Seen Jeem. Challenge your friends and family, split into teams, and answer fun questions together.','???? ?????? ????? ??????? ?? ??? ???. ????? ??????? ???????? ???????? ??? ??? ??????? ??? ????? ????? ????.'),
                           color: Colors.blue,
                           // Remove the foreground image argument
                         ),
@@ -90,95 +88,92 @@ class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {
                         _buildPage(
                           context,
                           // icon: Icons.people_outline,
-                          title: t('Play as a Team', 'العب كفريق'),
-                          description: t(
-                              'Team up with your friends and family. Work together, compete, and answer questions as a team to score points!',
-                              'كوّن فريقك مع أصدقائك وعائلتك. تعاونوا وتنافسوا وأجيبوا على الأسئلة لكسب النقاط!'),
+                          title: t('Play as a Team','?????? ?????'),
+                          description: t('Team up with your friends and family. Work together, compete, and answer questions as a team to score points!','??????? ?? ???????? ????????. ?????? ???? ???????? ??????? ?? ??????? ????? ??????? ??????!'),
                           color: Colors.green,
                         ),
                       ],
                     ),
                     // Page 3: Quality Services
-                    Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Image.asset(
-                            'assets/images/slideshow3.png',
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Stack(
-                          children: [
-                            Align(
-                              alignment: Alignment.topCenter,
-                              child: Padding(
-                                padding: const EdgeInsets.only(
-                                    top: 30.0, left: 20, right: 20),
-                                child: Text(
-                                  _selectedLanguage == 'ar'
-                                      ? 'اختر اللغة'
-                                      : 'Choose Language',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 28,
-                                    color: Colors.white,
-                                    shadows: [
-                                      Shadow(
-                                        color: Colors.black.withOpacity(0.35),
-                                        blurRadius: 8,
-                                        offset: Offset(1.5, 1.5),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Align(
-                              alignment: Alignment.bottomRight,
-                              child: Padding(
-                                padding: const EdgeInsets.only(
-                                    right: 20.0, bottom: 20.0),
-                                child: ToggleButtons(
-                                  isSelected: [
-                                    _selectedLanguage == 'en',
-                                    _selectedLanguage == 'ar'
-                                  ],
-                                  onPressed: (index) {
-                                    setState(() {
-                                      _selectedLanguage =
-                                          index == 0 ? 'en' : 'ar';
-                                    });
-                                  },
-                                  borderRadius: BorderRadius.circular(8),
-                                  selectedColor: Colors.white,
-                                  fillColor: Colors.orange,
-                                  color: Colors.orange,
-                                  constraints: BoxConstraints(
-                                    minHeight: 32,
-                                    minWidth: 48,
-                                  ),
-                                  children: [
-                                    Text('EN',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold)),
-                                    Text('عربى',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    _buildPage(
-                      context,
-                      title: t('Get Started', 'ابدأ الآن'),
-                      description: t(
-                          'Ready to begin? Start your Dorak adventure now!',
-                          'جاهز للانطلاق؟ ابدأ مغامرتك مع دوراك الآن!'),
+                    // Stack(
+                    //   children: [
+                    //     Positioned.fill(
+                    //       child: Image.asset(
+                    //         'assets/images/slideshow3.png',
+                    //         fit: BoxFit.cover,
+                    //       ),
+                    //     ),
+                    //     Stack(
+                    //       children: [
+                    //         Align(
+                    //           alignment: Alignment.topCenter,
+                    //           child: Padding(
+                    //             padding: const EdgeInsets.only(
+                    //                 top: 30.0, left: 20, right: 20),
+                    //             child: Text(
+                    //               _selectedLanguage == 'ar'
+                    //                   ? 'اختر اللغة'
+                    //                   : 'Choose Language',
+                    //               textAlign: TextAlign.center,
+                    //               style: TextStyle(
+                    //                 fontWeight: FontWeight.bold,
+                    //                 fontSize: 28,
+                    //                 color: Colors.white,
+                    //                 shadows: [
+                    //                   Shadow(
+                    //                     color: Colors.black.withOpacity(0.35),
+                    //                     blurRadius: 8,
+                    //                     offset: Offset(1.5, 1.5),
+                    //                   ),
+                    //                 ],
+                    //               ),
+                    //             ),
+                    //           ),
+                    //         ),
+                    //         Align(
+                    //           alignment: Alignment.bottomRight,
+                    //           child: Padding(
+                    //             padding: const EdgeInsets.only(
+                    //                 right: 20.0, bottom: 20.0),
+                    //             child: ToggleButtons(
+                    //               isSelected: [
+                    //                 _selectedLanguage == 'en',
+                    //                 _selectedLanguage == 'ar'
+                    //               ],
+                    //               onPressed: (index) {
+                    //                 setState(() {
+                    //                   _selectedLanguage =
+                    //                       index == 0 ? 'en' : 'ar';
+                    //                 });
+                    //               },
+                    //               borderRadius: BorderRadius.circular(8),
+                    //               selectedColor: Colors.white,
+                    //               fillColor: Colors.orange,
+                    //               color: Colors.orange,
+                    //               constraints: BoxConstraints(
+                    //                 minHeight: 32,
+                    //                 minWidth: 48,
+                    //               ),
+                    //               children: [
+                    //                 Text('EN',
+                    //                     style: TextStyle(
+                    //                         fontWeight: FontWeight.bold)),
+                    //                 Text('عربى',
+                    //                     style: TextStyle(
+                    //                         fontWeight: FontWeight.bold)),
+                    //               ],
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ],
+                    // ),
+                    // _buildPage(
+                    //   context,
+                    //   icon: Icons.work_outline,
+                    //   title: t('Get Started','???? ????'),
+                      description: t('Ready to begin? Start your Dorak adventure now!','???? ?????? ???? ??????? ?? ????? ????!'),
                       color: Colors.purple,
                     ),
                   ],
@@ -218,8 +213,7 @@ class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {
                             curve: Curves.easeInOut,
                           );
                         },
-                        child: Text(
-                          t('Previous', 'السابق'),
+                        child: Text(t('Previous','??????'),
                           style: GoogleFonts.inter(
                             color: Colors.grey[600],
                             fontSize: 16,
@@ -256,9 +250,7 @@ class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {
                         ),
                       ),
                       child: Text(
-                        _currentPage < 3
-                            ? t('Continue', 'متابعة')
-                            : t('Get Started', 'ابدأ الآن'),
+                        _currentPage < 3 ? t('Continue','??????') : t('Get Started','???? ????'),
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -281,7 +273,7 @@ class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {
     required String title,
     required String description,
     required Color color,
-    // Image? image,
+    Image? image,
   }) {
     return Container(
       width: double.infinity,
@@ -333,3 +325,5 @@ class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {
     );
   }
 }
+
+

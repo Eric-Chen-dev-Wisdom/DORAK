@@ -6,6 +6,7 @@ import '../services/navigation_service.dart';
 import '../utils/routes.dart';
 import '../services/auth_service.dart';
 import 'signup_screen.dart';
+import 'package:DORAK/l10n/app_localizations.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,7 +35,10 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       setState(() {
         _initializing = false;
-        _error = 'Firebase failed to initialize: $e';
+        // Use localized firebase init error if available
+        _error = AppLocalizations.of(context)?.firebaseInitError != null
+            ? "${AppLocalizations.of(context)!.firebaseInitError}: $e"
+            : 'Firebase failed to initialize: $e';
       });
     }
   }
@@ -68,11 +72,14 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on FirebaseAuthException catch (e) {
       setState(() {
-        _loginError = e.message ?? "Login failed";
+        _loginError = e.message ??
+            AppLocalizations.of(context)?.loginFailed ??
+            "Login failed";
       });
     } catch (e) {
       setState(() {
-        _loginError = "An error occurred. Please try again.";
+        _loginError = AppLocalizations.of(context)?.loginFailed ??
+            "An error occurred. Please try again.";
       });
     } finally {
       setState(() {
@@ -82,22 +89,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildEmailLoginForm() {
+    final loc = AppLocalizations.of(context)!;
     return Column(
       children: [
         TextField(
           controller: _emailController,
-          decoration: const InputDecoration(
-            labelText: "Email",
-            prefixIcon: Icon(Icons.email_outlined),
+          decoration: InputDecoration(
+            labelText: loc.emailLabel,
+            prefixIcon: const Icon(Icons.email_outlined),
           ),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _passwordController,
           obscureText: true,
-          decoration: const InputDecoration(
-            labelText: "Password",
-            prefixIcon: Icon(Icons.lock_outline),
+          decoration: InputDecoration(
+            labelText: loc.passwordLabel,
+            prefixIcon: const Icon(Icons.lock_outline),
           ),
         ),
         const SizedBox(height: 12),
@@ -119,9 +127,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: 24,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text(
-                    "Sign In with Email",
-                    style: TextStyle(fontSize: 16),
+                : Text(
+                    loc.signInButton,
+                    style: const TextStyle(fontSize: 16),
                   ),
           ),
         ),
@@ -131,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
               MaterialPageRoute(builder: (_) => const SignUpScreen()),
             );
           },
-          child: const Text("Don't have an account? Sign Up"),
+          child: Text(loc.noAccount),
         ),
       ],
     );
@@ -139,9 +147,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+
     if (_initializing) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        body: Center(child: Text(loc.loading)),
       );
     }
     if (_error != null) {
@@ -154,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: AppConstants.backgroundColor,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: const Text('Sign In'),
+        title: Text(loc.signInTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -175,19 +185,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const SizedBox(height: 40),
-                        const Text(
-                          'Welcome to DORAK!',
-                          style: TextStyle(
+                        Text(
+                          loc.welcomeTitle,
+                          style: const TextStyle(
                             fontSize: AppConstants.headingSize,
                             fontWeight: FontWeight.bold,
                             color: AppConstants.textColor,
                           ),
                         ),
                         const SizedBox(height: 10),
-                        const Text(
-                          'Sign in to save your progress and compete with friends',
+                        Text(
+                          loc.welcomeSubtitle,
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: AppConstants.bodySize,
                             color: AppConstants.textColor,
                           ),
@@ -236,14 +246,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               foregroundColor: Colors.black,
                               padding: const EdgeInsets.all(16),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.g_mobiledata, size: 24),
-                                SizedBox(width: 12),
+                                const Icon(Icons.g_mobiledata, size: 24),
+                                const SizedBox(width: 12),
                                 Text(
-                                  'Continue with Google',
-                                  style: TextStyle(fontSize: 16),
+                                  loc.googleButton,
+                                  style: const TextStyle(fontSize: 16),
                                 ),
                               ],
                             ),
@@ -271,14 +281,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.all(16),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.apple, size: 24),
-                                SizedBox(width: 12),
+                                const Icon(Icons.apple, size: 24),
+                                const SizedBox(width: 12),
                                 Text(
-                                  'Continue with Apple',
-                                  style: TextStyle(fontSize: 16),
+                                  loc.appleButton,
+                                  style: const TextStyle(fontSize: 16),
                                 ),
                               ],
                             ),
@@ -293,8 +303,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: OutlinedButton(
                             onPressed: () async {
                               final authService = AuthService();
-                              final user =
-                                  await authService.guestLogin('Guest Player');
+                              final user = await authService
+                                  .guestLogin(loc.nicknameLabel);
                               NavigationService.navigateTo(
                                 AppRoutes.lobbyGuest,
                                 arguments: user,
@@ -306,14 +316,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               side: const BorderSide(color: Colors.green),
                               padding: const EdgeInsets.all(16),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.person_outline, size: 24),
-                                SizedBox(width: 12),
+                                const Icon(Icons.person_outline, size: 24),
+                                const SizedBox(width: 12),
                                 Text(
-                                  'Continue as Guest',
-                                  style: TextStyle(fontSize: 16),
+                                  loc.guestButton,
+                                  style: const TextStyle(fontSize: 16),
                                 ),
                               ],
                             ),

@@ -36,7 +36,8 @@ class _CategoryEditorState extends State<CategoryEditor> {
     if (!_form.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      final id = widget.category?.id ?? FirebaseFirestore.instance.collection('categories').doc().id;
+      final id = widget.category?.id ??
+          FirebaseFirestore.instance.collection('categories').doc().id;
       final cat = Category(
         id: id,
         name: _name.text.trim(),
@@ -52,7 +53,8 @@ class _CategoryEditorState extends State<CategoryEditor> {
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Save failed: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -61,7 +63,9 @@ class _CategoryEditorState extends State<CategoryEditor> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.category == null ? 'Add Category' : 'Edit Category')),
+      appBar: AppBar(
+          title:
+              Text(widget.category == null ? 'Add Category' : 'Edit Category')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -71,7 +75,8 @@ class _CategoryEditorState extends State<CategoryEditor> {
               TextFormField(
                 controller: _name,
                 decoration: const InputDecoration(labelText: 'Name'),
-                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -81,17 +86,20 @@ class _CategoryEditorState extends State<CategoryEditor> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<CategoryType>(
-                value: _type,
+                initialValue: _type,
                 items: CategoryType.values
-                    .map((t) => DropdownMenuItem(value: t, child: Text(t.toString().split('.').last)))
+                    .map((t) => DropdownMenuItem(
+                        value: t, child: Text(t.toString().split('.').last)))
                     .toList(),
-                onChanged: (v) => setState(() => _type = v ?? CategoryType.trivia),
+                onChanged: (v) =>
+                    setState(() => _type = v ?? CategoryType.trivia),
                 decoration: const InputDecoration(labelText: 'Type'),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _image,
-                decoration: const InputDecoration(labelText: 'Image URL or asset path'),
+                decoration:
+                    const InputDecoration(labelText: 'Image URL or asset path'),
               ),
               const SizedBox(height: 24),
               ElevatedButton(
@@ -105,4 +113,3 @@ class _CategoryEditorState extends State<CategoryEditor> {
     );
   }
 }
-

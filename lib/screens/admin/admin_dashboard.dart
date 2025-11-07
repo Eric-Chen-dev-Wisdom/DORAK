@@ -70,7 +70,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ChallengeList(category: c, canEdit: _isAdmin),
+                          builder: (_) =>
+                              ChallengeList(category: c, canEdit: _isAdmin),
                         ),
                       ),
                       trailing: _isAdmin
@@ -103,7 +104,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   void _openAdminMenu() async {
     if (!_isAdmin) return;
-    final rootContext = context; // keep a stable context for navigation/snackbars
+    final rootContext =
+        context; // keep a stable context for navigation/snackbars
     await showModalBottomSheet(
       context: rootContext,
       builder: (sheetContext) => SafeArea(
@@ -129,9 +131,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 final count = await _qs.syncDefaultQuestionsMerge();
                 if (!mounted) return;
                 ScaffoldMessenger.of(rootContext).showSnackBar(
-                  SnackBar(content: Text(count == 0
-                      ? 'Default questions are up to date.'
-                      : 'Added $count default questions.')),
+                  SnackBar(
+                      content: Text(count == 0
+                          ? 'Default questions are up to date.'
+                          : 'Added $count default questions.')),
                 );
               },
             ),
@@ -147,7 +150,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Navigator.push(
                     rootContext,
                     MaterialPageRoute(
-                      builder: (_) => ChallengeList(category: cat, canEdit: _isAdmin),
+                      builder: (_) =>
+                          ChallengeList(category: cat, canEdit: _isAdmin),
                     ),
                   );
                 }
@@ -179,7 +183,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<Category?> _pickCategory(String title) async {
     if (_cats.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No categories available. Add one first.')),
+        const SnackBar(
+            content: Text('No categories available. Add one first.')),
       );
       return null;
     }
@@ -191,7 +196,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              child: Text(title,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
             const Divider(height: 1),
             Flexible(

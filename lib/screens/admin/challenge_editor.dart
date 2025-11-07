@@ -41,17 +41,24 @@ class _ChallengeEditorState extends State<ChallengeEditor> {
     if (!_form.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      final id = widget.challenge?.id ?? FirebaseFirestore.instance
-          .collection('categories/${widget.categoryId}/challenges')
-          .doc()
-          .id;
-      final options = _options.map((c) => c.text.trim()).where((e) => e.isNotEmpty).toList();
+      final id = widget.challenge?.id ??
+          FirebaseFirestore.instance
+              .collection('categories/${widget.categoryId}/challenges')
+              .doc()
+              .id;
+      final options = _options
+          .map((c) => c.text.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
       final q = Challenge(
         id: id,
         question: _question.text.trim(),
         options: options.isEmpty ? null : options,
         // Store correct answer as string value if options exist
-        correctAnswer: options.isEmpty ? null : options[_correctIndex.clamp(0, (options.length - 1).clamp(0, 999))],
+        correctAnswer: options.isEmpty
+            ? null
+            : options[
+                _correctIndex.clamp(0, (options.length - 1).clamp(0, 999))],
         difficulty: _difficulty,
       );
       if (widget.challenge == null) {
@@ -61,7 +68,8 @@ class _ChallengeEditorState extends State<ChallengeEditor> {
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Save failed: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -70,7 +78,9 @@ class _ChallengeEditorState extends State<ChallengeEditor> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.challenge == null ? 'Add Question' : 'Edit Question')),
+      appBar: AppBar(
+          title: Text(
+              widget.challenge == null ? 'Add Question' : 'Edit Question')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -81,7 +91,8 @@ class _ChallengeEditorState extends State<ChallengeEditor> {
                 controller: _question,
                 decoration: const InputDecoration(labelText: 'Question'),
                 maxLines: 3,
-                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               const Text('Options (leave blank for open-ended question)'),
@@ -96,21 +107,28 @@ class _ChallengeEditorState extends State<ChallengeEditor> {
                 ),
               const SizedBox(height: 8),
               DropdownButtonFormField<int>(
-                value: _correctIndex,
-                items: List.generate(4, (i) => DropdownMenuItem(value: i, child: Text('Correct: Option ${i + 1}'))),
+                initialValue: _correctIndex,
+                items: List.generate(
+                    4,
+                    (i) => DropdownMenuItem(
+                        value: i, child: Text('Correct: Option ${i + 1}'))),
                 onChanged: (v) => setState(() => _correctIndex = v ?? 0),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<ChallengeDifficulty>(
-                value: _difficulty,
+                initialValue: _difficulty,
                 items: ChallengeDifficulty.values
-                    .map((d) => DropdownMenuItem(value: d, child: Text(d.toString().split('.').last)))
+                    .map((d) => DropdownMenuItem(
+                        value: d, child: Text(d.toString().split('.').last)))
                     .toList(),
-                onChanged: (v) => setState(() => _difficulty = v ?? ChallengeDifficulty.easy),
+                onChanged: (v) =>
+                    setState(() => _difficulty = v ?? ChallengeDifficulty.easy),
                 decoration: const InputDecoration(labelText: 'Difficulty'),
               ),
               const SizedBox(height: 24),
-              ElevatedButton(onPressed: _saving ? null : _save, child: Text(_saving ? 'Saving...' : 'Save')),
+              ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  child: Text(_saving ? 'Saving...' : 'Save')),
             ],
           ),
         ),
@@ -118,4 +136,3 @@ class _ChallengeEditorState extends State<ChallengeEditor> {
     );
   }
 }
-

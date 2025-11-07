@@ -18,9 +18,12 @@ dependencies:
   sign_in_with_apple: ^6.1.0
   shared_preferences: ^2.2.2
   google_fonts: ^6.1.0
-  provider: ^6.1.1        # For state management
-  share_plus: ^7.0.1      # For room code sharing
-  audioplayers: ^5.2.1    # For karaoke challenges
+  provider: ^6.1.1
+  share_plus: ^7.0.1
+  audioplayers: ^5.2.1
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.0
 
 dev_dependencies:
   flutter_test:
@@ -28,7 +31,6 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.13.1
 
-# ✅ Only one flutter_launcher_icons block (outside dev_dependencies)
 flutter_launcher_icons:
   android: true
   ios: true
@@ -38,5 +40,10 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  generate: true
   assets:
     - assets/images/
+
+l10n:
+  arb-dir: lib/l10n
+  template-arb-file: app_en.arb

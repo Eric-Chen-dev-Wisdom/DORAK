@@ -4,6 +4,7 @@ import '../utils/constants.dart';
 import '../services/navigation_service.dart';
 import '../utils/routes.dart';
 import '../services/auth_service.dart';
+import 'package:DORAK/l10n/app_localizations.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,7 +23,9 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     try {
       final authService = AuthService();
-      final user = await authService.guestLogin('Guest Player');
+      final user = await authService.guestLogin(
+        AppLocalizations.of(context)?.nicknameLabel ?? 'Guest Player',
+      );
       // On success, redirect to lobby page with user
       NavigationService.navigateTo(
         AppRoutes.lobby,
@@ -31,7 +34,12 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       // Optionally, show an error here
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to log in as guest: $e')),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)?.loginFailed ??
+                'Failed to log in as guest: $e',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -44,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Scaffold(
       // Remove backgroundColor and use a background image instead
       body: Stack(
@@ -116,11 +125,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Padding(
-                            padding: EdgeInsets.all(16.0),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
                             child: Text(
-                              'Create Account',
-                              style: TextStyle(fontSize: 18),
+                              loc?.createNewRoom ?? 'Create Account',
+                              // 'Create Account' fallback for compatibility
+                              style: const TextStyle(fontSize: 18),
                             ),
                           ),
                         ),
@@ -147,9 +157,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   child:
                                       CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Text(
-                                  'Play as Guest',
-                                  style: TextStyle(fontSize: 18),
+                              : Text(
+                                  loc?.continueGuest ?? 'Play as Guest',
+                                  style: const TextStyle(fontSize: 18),
                                 ),
                         ),
                       ),

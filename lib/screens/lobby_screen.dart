@@ -48,18 +48,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   @override
-void dispose() {
-  _roomSubscription?.cancel();
-  _chatController.dispose();
-  super.dispose();
-}
+  void dispose() {
+    _roomSubscription?.cancel();
+    _chatController.dispose();
+    super.dispose();
+  }
 
   void _joinExistingRoom(String roomCode) {
     setState(() => _isLoading = true);
 
     _roomSubscription = _lobbyService.getRoomStream(roomCode).listen((room) {
       if (!mounted) return;
-  
+
       setState(() {
         _isLoading = false;
         _currentRoom = room;
@@ -180,89 +180,92 @@ void dispose() {
   }
 
   void _startGame() {
-  if (_currentRoom == null) return;
-  
-  // ADD PLAYER COUNT VALIDATION
-  final totalPlayers = _currentRoom!.teamA.length + _currentRoom!.teamB.length;
-  if (totalPlayers < 2) {
-    _showError('Need at least 2 players to start the game!');
-    return;
+    if (_currentRoom == null) return;
+
+    // ADD PLAYER COUNT VALIDATION
+    final totalPlayers =
+        _currentRoom!.teamA.length + _currentRoom!.teamB.length;
+    if (totalPlayers < 2) {
+      _showError('Need at least 2 players to start the game!');
+      return;
+    }
+
+    if (widget.user.id != _currentRoom!.hostId) {
+      _showError('Only the host can start the game.');
+      return;
+    }
+
+    // ADD CONFIRMATION DIALOG
+    _showStartGameConfirmation();
   }
-  
-  if (widget.user.id != _currentRoom!.hostId) {
-    _showError('Only the host can start the game.');
-    return;
-  }
-  
-  // ADD CONFIRMATION DIALOG
-  _showStartGameConfirmation();
-}
 
 // ADD THIS NEW METHOD FOR CONFIRMATION
-void _showStartGameConfirmation() {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Start Game?'),
-      content: Text('Are you ready to begin the game with ${_currentRoom!.teamA.length + _currentRoom!.teamB.length} players?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _lobbyService.startGame(_currentRoom!);
-          },
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-          child: Text('Start Game!'),
-        ),
-      ],
-    ),
-  );
-}
+  void _showStartGameConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Start Game?'),
+        content: Text(
+            'Are you ready to begin the game with ${_currentRoom!.teamA.length + _currentRoom!.teamB.length} players?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _lobbyService.startGame(_currentRoom!);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: Text('Start Game!'),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _shareRoomCode() async {
-  if (_currentRoom == null) return;
+    if (_currentRoom == null) return;
 
-  try {
-    print('🔄 Starting share process for room: ${_currentRoom!.code}');
-    
-    // 1. Update Firestore signal (for UI updates)
-    await _lobbyService.signalShare(_currentRoom!.code, widget.user.displayName);
-    
-    // 2. Copy to clipboard instead of native share
-    final roomCode = _currentRoom!.code;
-    await _copyToClipboard(roomCode);
-    
-    // 3. Show success message
-    _showSuccess('Room code $roomCode copied to clipboard! Share it with your friends.');
-    
-    print('✅ Room code copied to clipboard: $roomCode');
-    
-  } catch (e) {
-    print('❌ Error sharing room: $e');
-    _showError('Failed to share room code. Please try again.');
+    try {
+      print('🔄 Starting share process for room: ${_currentRoom!.code}');
+
+      // 1. Update Firestore signal (for UI updates)
+      await _lobbyService.signalShare(
+          _currentRoom!.code, widget.user.displayName);
+
+      // 2. Copy to clipboard instead of native share
+      final roomCode = _currentRoom!.code;
+      await _copyToClipboard(roomCode);
+
+      // 3. Show success message
+      _showSuccess(
+          'Room code $roomCode copied to clipboard! Share it with your friends.');
+
+      print('✅ Room code copied to clipboard: $roomCode');
+    } catch (e) {
+      print('❌ Error sharing room: $e');
+      _showError('Failed to share room code. Please try again.');
+    }
   }
-}
 
 // ADD THIS NEW HELPER METHOD:
-Future<void> _copyToClipboard(String text) async {
-  // Import this at the top: import 'package:flutter/services.dart';
-  await Clipboard.setData(ClipboardData(text: text));
-}
+  Future<void> _copyToClipboard(String text) async {
+    // Import this at the top: import 'package:flutter/services.dart';
+    await Clipboard.setData(ClipboardData(text: text));
+  }
 
 // ADD THIS SUCCESS MESSAGE METHOD:
-void _showSuccess(String msg) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(msg),
-      backgroundColor: Colors.green,
-      duration: Duration(seconds: 3),
-    ),
-  );
-}
+  void _showSuccess(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -463,30 +466,30 @@ void _showSuccess(String msg) {
         _roomInfoCard(isHost),
         const SizedBox(height: 16),
         // ADD THIS NEW WIDGET FOR REAL-TIME STATUS:
-      Container(
-        padding: EdgeInsets.all(12),
-        margin: EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          color: Colors.green[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.green[200]!),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.circle, color: Colors.green, size: 16),
-            SizedBox(width: 8),
-            Text(
-              'Live - ${_currentRoom!.teamA.length + _currentRoom!.teamB.length} players connected',
-              style: TextStyle(
-                color: Colors.green[700],
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+        Container(
+          padding: EdgeInsets.all(12),
+          margin: EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: Colors.green[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green[200]!),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.circle, color: Colors.green, size: 16),
+              SizedBox(width: 8),
+              Text(
+                'Live - ${_currentRoom!.teamA.length + _currentRoom!.teamB.length} players connected',
+                style: TextStyle(
+                  color: Colors.green[700],
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
         Expanded(
           child: Column(
             children: [
@@ -712,7 +715,7 @@ void _showSuccess(String msg) {
             // We'll implement this in Phase 2
             _showInfo('Chat controls coming soon!');
           },
-          activeColor: Colors.green,
+          activeThumbColor: Colors.green,
         ),
       ],
     );

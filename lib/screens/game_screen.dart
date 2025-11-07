@@ -30,7 +30,7 @@ class _GameScreenState extends State<GameScreen> {
   int _selectedAnswerIndex = -1;
   int _remainingTime = 60;
   bool _isTimerRunning = false;
-  Map<String, int> _teamVotes = {'A': 0, 'B': 0};
+  final Map<String, int> _teamVotes = {'A': 0, 'B': 0};
 
   final FirebaseService _firebaseService = FirebaseService();
   final QuestionService _questionService = QuestionService();
@@ -121,7 +121,8 @@ class _GameScreenState extends State<GameScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => ResultScreen(room: widget.room, user: widget.user),
+            builder: (context) =>
+                ResultScreen(room: widget.room, user: widget.user),
           ),
         );
       }
@@ -223,7 +224,8 @@ class _GameScreenState extends State<GameScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => ResultScreen(room: widget.room, user: widget.user),
+        builder: (context) =>
+            ResultScreen(room: widget.room, user: widget.user),
       ),
     );
   }

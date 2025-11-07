@@ -34,7 +34,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
   final Set<String> _selectedIds = <String>{};
   late final Map<String, Category> _catalogById;
   String _difficulty = 'all'; // 'all','easy','medium','hard'
-  int _questionCount = 10;    // host-chosen count
+  int _questionCount = 10; // host-chosen count
 
   bool get _isHost => widget.user.id == widget.room.hostId;
 
@@ -46,7 +46,8 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
     _selectedIds.addAll(widget.room.selectedCategories.map((c) => c.id));
     _selectedCategories
       ..clear()
-      ..addAll(_selectedIds.map((id) => _catalogById[id]).whereType<Category>());
+      ..addAll(
+          _selectedIds.map((id) => _catalogById[id]).whereType<Category>());
     // Everyone listens: host and joiners
     _roomSub = _lobbyService.getRoomStream(widget.room.code).listen((room) {
       if (!mounted || room == null) return;
@@ -57,9 +58,8 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
           ..addAll(room.selectedCategories.map((c) => c.id));
         _selectedCategories
           ..clear()
-          ..addAll(_selectedIds
-              .map((id) => _catalogById[id])
-              .whereType<Category>());
+          ..addAll(
+              _selectedIds.map((id) => _catalogById[id]).whereType<Category>());
       });
       // Transition to game for all when host starts
       if (!_navigatedToGame && room.state == GameState.inGame) {
@@ -100,9 +100,8 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       }
       _selectedCategories
         ..clear()
-        ..addAll(_selectedIds
-            .map((id) => _catalogById[id])
-            .whereType<Category>());
+        ..addAll(
+            _selectedIds.map((id) => _catalogById[id]).whereType<Category>());
     });
     // Broadcast live selection so joiners can see
     _lobbyService.updateSelectedCategories(
@@ -111,7 +110,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
 
   void _startGame() {
     if (!_isHost) return;
-    if (_selectedIds.length < 1) {
+    if (_selectedIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select at least 1 category')),
       );
@@ -172,26 +171,32 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _difficulty,
+                      initialValue: _difficulty,
                       items: const [
                         DropdownMenuItem(value: 'all', child: Text('All')),
                         DropdownMenuItem(value: 'easy', child: Text('Easy')),
-                        DropdownMenuItem(value: 'medium', child: Text('Medium')),
+                        DropdownMenuItem(
+                            value: 'medium', child: Text('Medium')),
                         DropdownMenuItem(value: 'hard', child: Text('Hard')),
                       ],
-                      onChanged: (v) => setState(() => _difficulty = v ?? 'all'),
-                      decoration: const InputDecoration(labelText: 'Difficulty'),
+                      onChanged: (v) =>
+                          setState(() => _difficulty = v ?? 'all'),
+                      decoration:
+                          const InputDecoration(labelText: 'Difficulty'),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: _questionCount,
+                      initialValue: _questionCount,
                       items: const [5, 10, 15, 20]
-                          .map((n) => DropdownMenuItem(value: n, child: Text('$n questions')))
+                          .map((n) => DropdownMenuItem(
+                              value: n, child: Text('$n questions')))
                           .toList(),
-                      onChanged: (v) => setState(() => _questionCount = v ?? 10),
-                      decoration: const InputDecoration(labelText: 'Number of Questions'),
+                      onChanged: (v) =>
+                          setState(() => _questionCount = v ?? 10),
+                      decoration: const InputDecoration(
+                          labelText: 'Number of Questions'),
                     ),
                   ),
                 ],

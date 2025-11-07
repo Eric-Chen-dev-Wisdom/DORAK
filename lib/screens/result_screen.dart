@@ -39,7 +39,7 @@ class ResultScreen extends StatelessWidget {
         final isTie = a == b;
 
         // Determine user's team robustly: try id, then fallback to displayName for host
-        String? _idOf(dynamic u) {
+        String? idOf(dynamic u) {
           try {
             if (u is Map) return u['id'] as String?;
             return (u as dynamic).id as String?;
@@ -48,7 +48,7 @@ class ResultScreen extends StatelessWidget {
           }
         }
 
-        String _nameOf(dynamic u) {
+        String nameOf(dynamic u) {
           try {
             if (u is Map) return (u['displayName'] as String?) ?? '';
             return (u as dynamic).displayName as String? ?? '';
@@ -57,12 +57,12 @@ class ResultScreen extends StatelessWidget {
           }
         }
 
-        bool inA = teamA.any((u) => _idOf(u) == user?.id);
-        bool inB = teamB.any((u) => _idOf(u) == user?.id);
+        bool inA = teamA.any((u) => idOf(u) == user?.id);
+        bool inB = teamB.any((u) => idOf(u) == user?.id);
         if (!inA && !inB && user?.id == room.hostId) {
           // Host may have been stored with a guest id initially; match by name.
-          inA = teamA.any((u) => _nameOf(u) == user?.displayName);
-          inB = teamB.any((u) => _nameOf(u) == user?.displayName);
+          inA = teamA.any((u) => nameOf(u) == user?.displayName);
+          inB = teamB.any((u) => nameOf(u) == user?.displayName);
         }
         final isUserTeamA = inA && !inB ? true : (!inA && inB ? false : true);
         final userWon = isTie ? false : (isUserTeamA ? teamAWon : teamBWon);
