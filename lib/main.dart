@@ -20,17 +20,21 @@ import 'services/locale_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await LocaleService.loadSaved();
-  runApp(const DorakApp());
-
+  // 🎯 FIX: Initialize Firebase BEFORE running the app
+  print('● Starting Firebase initialization...');
   try {
     await FirebaseInit.initialize();
-    // ignore: avoid_print
-    print('Firebase initialized successfully.');
+    print('✅ Firebase initialized successfully');
   } catch (e) {
-    // ignore: avoid_print
-    print('Firebase initialization failed: $e');
+    print('❌ Firebase initialization failed: $e');
+    // You might want to handle this differently, but for now we'll continue
   }
+
+  // 🎯 FIX: Load locale settings AFTER Firebase init
+  await LocaleService.loadSaved();
+  
+  // 🎯 FIX: Run app AFTER Firebase is initialized
+  runApp(const DorakApp());
 }
 
 class DorakApp extends StatelessWidget {

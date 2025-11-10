@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
+import 'package:DORAK/l10n/app_localizations.dart';
 import '../models/room_model.dart';
 import '../models/user_model.dart';
 import '../widgets/host_control_panel.dart';
@@ -8,6 +9,9 @@ import '../utils/constants.dart';
 import 'result_screen.dart';
 import '../services/firebase_service.dart';
 import '../services/question_service.dart';
+// Using host-written timestamps only; no server offset
+import '../widgets/chat_widget.dart';
+import '../services/lobby_service.dart';
 
 class GameScreen extends StatefulWidget {
   final GameRoom room;
@@ -31,19 +35,27 @@ class _GameScreenState extends State<GameScreen> {
   int _remainingTime = 60;
   bool _isTimerRunning = false;
   final Map<String, int> _teamVotes = {'A': 0, 'B': 0};
+  Timer? _countdown;
+  int? _timerEndAtMs;
+  bool _isChatVisible = false; // Add this line
 
   final FirebaseService _firebaseService = FirebaseService();
   final QuestionService _questionService = QuestionService();
+  final LobbyService _lobbyService = LobbyService();
 
   List<Map<String, dynamic>> _questions = [];
   bool _loadingQuestions = true;
   StreamSubscription? _roomSub;
   int _displayPointsA = 0;
   int _displayPointsB = 0;
+  late GameRoom _currentRoom; // Add this line
 
-  // Load questions prepared by host, fallback to Firestore if missing
+// Guard against redundant timer updates
+  int? _lastTimerStampMs;
+  int? _lastServerTimer;
+  bool? _lastRunning;
+
   Future<void> _loadQuestions() async {
-    // If host already prepared questions, use them
     if (widget.room.preparedQuestions.isNotEmpty) {
       setState(() {
         _questions = widget.room.preparedQuestions;
@@ -51,9 +63,8 @@ class _GameScreenState extends State<GameScreen> {
       });
       return;
     }
-
-    // Fallback: load everything (legacy)
     final selectedCategories = widget.room.selectedCategories;
+    final String lang = Localizations.localeOf(context).languageCode;
     final List<Map<String, dynamic>> loadedQuestions = [];
     for (final category in selectedCategories) {
       final snap = await FirebaseFirestore.instance
@@ -63,7 +74,10 @@ class _GameScreenState extends State<GameScreen> {
           .get();
       for (final doc in snap.docs) {
         final data = doc.data();
-        final options = (data['options'] as List?)?.cast<String>() ?? const [];
+        final options =
+            (data['options_${lang}'] as List?)?.cast<String>() ??
+            (data['options'] as List?)?.cast<String>() ??
+            const [];
         final correct = data['correctAnswer'];
         int correctIndex = -1;
         if (correct is int) {
@@ -75,7 +89,9 @@ class _GameScreenState extends State<GameScreen> {
           'id': doc.id,
           'category': category.name,
           'categoryId': category.id,
-          'question': data['question'] ?? '',
+          'question': (data['question_${lang}'] as String?) ??
+              (data['question'] as String?) ??
+              '',
           'options': options,
           'correctAnswer': correctIndex,
         });
@@ -91,21 +107,36 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
-    _remainingTime = widget.room.currentTimer;
-    _isTimerRunning = widget.room.isTimerRunning;
-    _displayPointsA = widget.room.teamAPoints;
-    _displayPointsB = widget.room.teamBPoints;
+    _currentRoom = widget.room; // Initialize _currentRoom
+    _remainingTime = _currentRoom.currentTimer;
+    _isTimerRunning = _currentRoom.isTimerRunning;
+    _displayPointsA = _currentRoom.teamAPoints;
+    _displayPointsB = _currentRoom.teamBPoints;
 
-    _loadQuestions(); // Load Firestore questions
+    _loadQuestions();
+    // No server time offset needed
 
-    // Sync current question and game state across clients
-    _roomSub = _firebaseService.getRoomStream(widget.room.code).listen((snap) {
+    _roomSub = _firebaseService.getRoomStream(_currentRoom.code).listen((snap) {
+      // Avoid acting on local pending writes; wait for server-resolved snapshot
+      if (snap.metadata.hasPendingWrites) return;
       final data = snap.data();
       if (data == null) return;
+      // Debug timer payload (one line, easy to scan)
+      try {
+        // Safe prints (types may be Timestamp/String/int)
+        final rawTs = data['timerUpdatedAt'];
+        final ver = data['timerVersion'];
+        final ctDbg = data['currentTimer'];
+        final runDbg = data['isTimerRunning'];
+        // ignore: avoid_print
+        print('[Timer][GS] pending=${snap.metadata.hasPendingWrites} cache=${snap.metadata.isFromCache} ver=$ver run=$runDbg ct=$ctDbg ts=$rawTs');
+      } catch (_) {}
+      final room = GameRoom.fromJson(data); // Parse full room object
       final idx = (data['currentRound'] as num?)?.toInt() ?? 0;
       final state = data['state'] as String?;
       if (mounted) {
         setState(() {
+          _currentRoom = room; // Update _currentRoom here
           _currentQuestionIndex =
               idx.clamp(0, _questions.isEmpty ? 0 : _questions.length - 1);
           final scores = data['scores'] as Map<String, dynamic>?;
@@ -115,6 +146,46 @@ class _GameScreenState extends State<GameScreen> {
             _displayPointsB =
                 (scores['teamB'] as num?)?.toInt() ?? _displayPointsB;
           }
+          // Timer sync with redundancy guard
+          // Ensure server timestamp exists before computing
+          if (data['timerUpdatedAt'] == null) {
+            return;
+          }
+          final tsField = data['timerUpdatedAt'];
+          final ts = tsField is Timestamp
+              ? tsField.toDate()
+              : (tsField is String
+                  ? (DateTime.tryParse(tsField) ?? DateTime.now())
+                  : DateTime.now());
+          final ct = _currentRoom.currentTimer;
+          final running = _currentRoom.isTimerRunning;
+          // Ignore transient state where running is true but timer is still 0
+          if (running && (ct == 0)) return;
+          {
+            int updatedAtMs = ts.millisecondsSinceEpoch;
+
+            final changed = _lastTimerStampMs != updatedAtMs ||
+                _lastServerTimer != ct ||
+                _lastRunning != running;
+            if (changed) {
+              _lastTimerStampMs = updatedAtMs;
+              _lastServerTimer = ct;
+              _lastRunning = running;
+
+              _timerEndAtMs = running ? updatedAtMs + (ct * 1000) : null;
+              _isTimerRunning = running;
+
+              if (running && _timerEndAtMs != null) {
+                final nowMs = DateTime.now().millisecondsSinceEpoch;
+                final rem = ((_timerEndAtMs! - nowMs) / 1000).ceil();
+                _remainingTime = rem.clamp(0, 9999);
+                _startLocalCountdown();
+              } else {
+                _countdown?.cancel();
+                _remainingTime = ct;
+              }
+            }
+          }
         });
       }
       if (state == 'GameState.gameComplete' && mounted) {
@@ -122,22 +193,21 @@ class _GameScreenState extends State<GameScreen> {
           context,
           MaterialPageRoute(
             builder: (context) =>
-                ResultScreen(room: widget.room, user: widget.user),
+                ResultScreen(room: _currentRoom, user: widget.user),
           ),
         );
       }
     });
-
-    // Initialize voting state (derive host from room.hostId)
-    final bool isHost = widget.user.id == widget.room.hostId;
-    if (!widget.room.votingInProgress && isHost) {
-      widget.room.startVoting();
+    final bool isHost = widget.user.id == _currentRoom.hostId;
+    if (!_currentRoom.votingInProgress && isHost) {
+      _currentRoom.startVoting();
     }
   }
 
   @override
   void dispose() {
     _roomSub?.cancel();
+    _countdown?.cancel();
     super.dispose();
   }
 
@@ -149,7 +219,6 @@ class _GameScreenState extends State<GameScreen> {
 
   void _handleVoteSubmit() async {
     if (_selectedAnswerIndex == -1) return;
-    // Guard: host cannot vote
     if (widget.user.id == widget.room.hostId) return;
 
     final userTeam =
@@ -158,9 +227,16 @@ class _GameScreenState extends State<GameScreen> {
     await _firebaseService.submitVote(
         widget.room.code, userTeam, widget.user.id, _selectedAnswerIndex);
 
+    _showVoteSubmitted();
+  }
+
+  void _showVoteSubmitted() {
+    final loc = AppLocalizations.of(context)!;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Vote submitted for option ${_selectedAnswerIndex + 1}'),
+        content: Text(loc.voteSubmittedOption(_selectedAnswerIndex + 1)),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Colors.blue,
       ),
     );
   }
@@ -169,51 +245,53 @@ class _GameScreenState extends State<GameScreen> {
     setState(() {});
   }
 
-  void _handleTimerAdjust(int seconds) {
+  void _handleTimerAdjust(int seconds, bool running) async {
+    // Immediate local feedback for host before stream arrives
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
     setState(() {
       _remainingTime = seconds;
-      widget.room.updateTimer(seconds);
+      _isTimerRunning = running;
+      _timerEndAtMs = running ? nowMs + (seconds * 1000) : null;
+      // Explicitly update the widget.room with the new timerUpdatedAt
+      _currentRoom = _currentRoom.copyWith(
+        currentTimer: seconds,
+        isTimerRunning: running,
+        timerUpdatedAt: DateTime.now(),
+      );
     });
+    if (running) {
+      _startLocalCountdown();
+    } else {
+      _countdown?.cancel();
+    }
+    // Persist to Firestore for all clients
+    await _firebaseService.setTimer(widget.room.code, seconds,
+        running: running);
   }
 
-  void _handleNextQuestion() async {
-    if (_questions.isEmpty) return;
-    await _firebaseService.nextQuestion(widget.room.code, _questions.length);
+  Future<void> _handleNextQuestion() async {
+// Move to the next prepared question OR next in loaded list
+    final totalQuestions = _questions.length;
+    await _firebaseService.nextQuestion(widget.room.code, totalQuestions);
+// Reset UI selection for participants
+    if (mounted) {
+      setState(() {
+        _selectedAnswerIndex = -1;
+      });
+    }
   }
 
-  void _handleSkipQuestion() async {
-    if (_questions.isEmpty) return;
-    await _firebaseService.nextQuestion(widget.room.code, _questions.length);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Question skipped!'),
-        backgroundColor: Colors.orange,
-      ),
-    );
+  Future<void> _handleSkipQuestion() async {
+    await _firebaseService.endVoting(widget.room.code);
+    await _handleNextQuestion();
   }
 
   void _handlePowerCardUsed(String card) {
-    widget.room.usePowerCard(card);
-
-    switch (card) {
-      case 'Double Points':
-        break;
-      case 'Steal Points':
-        final stolenPoints = 2;
-        final newTeamAPoints = widget.room.teamAPoints + stolenPoints;
-        final newTeamBPoints = widget.room.teamBPoints - stolenPoints;
-        widget.room.updatePoints(newTeamAPoints, newTeamBPoints);
-        break;
-      case 'Reverse Turn':
-        break;
-      case 'Skip Round':
-        _handleSkipQuestion();
-        return;
-    }
-
+// Placeholder feedback only
+    final l10n = AppLocalizations.of(context)!;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$card activated!'),
+        content: Text(l10n.powerCardActivated(card)),
         backgroundColor: Colors.purple,
       ),
     );
@@ -230,21 +308,35 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  // Host starts voting
   void _handleStartVoting() async {
     if (widget.user.id != widget.room.hostId) return;
 
+// Start synchronized timer and voting
+// Immediate local start to avoid visible stall
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    setState(() {
+      _remainingTime = 60;
+      _isTimerRunning = true;
+      _timerEndAtMs = nowMs + 60 * 1000;
+    });
+    _startLocalCountdown();
+    await _firebaseService.setTimer(widget.room.code, 60, running: true);
     await _firebaseService.startVoting(widget.room.code);
     setState(() {
       widget.room.votingInProgress = true;
       _selectedAnswerIndex = -1;
-      _remainingTime = 60;
-      _isTimerRunning = true;
+      // Explicitly update the widget.room with the new timerUpdatedAt
+      _currentRoom = _currentRoom.copyWith(
+        currentTimer: 60,
+        isTimerRunning: true,
+        timerUpdatedAt: DateTime.now(),
+        votingInProgress: true,
+      );
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Voting started! Teams can now submit answers.'),
+      SnackBar(
+        content: Text(AppLocalizations.of(context)!.votingStarted),
         backgroundColor: Colors.green,
       ),
     );
@@ -279,7 +371,10 @@ class _GameScreenState extends State<GameScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Answer revealed! Team A: +$correctA, Team B: +$correctB',
+          AppLocalizations.of(context)!.answerRevealed(
+            correctA,
+            correctB,
+          ),
         ),
         backgroundColor: Colors.blue,
       ),
@@ -288,6 +383,8 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+
     if (_loadingQuestions) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -296,10 +393,23 @@ class _GameScreenState extends State<GameScreen> {
 
     final currentQuestion = _questions[_currentQuestionIndex];
 
+// Compute a light sync indicator: green when within 1s of predicted remaining, gray when paused, red if drift > 1s
+    Color syncColor;
+    if (!_isTimerRunning) {
+      syncColor = Colors.grey;
+    } else if (_timerEndAtMs != null) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final pred = ((_timerEndAtMs! - now) / 1000).ceil();
+      final delta = (pred - _remainingTime).abs();
+      syncColor = delta <= 1 ? Colors.green : Colors.redAccent;
+    } else {
+      syncColor = Colors.amber;
+    }
+
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
       appBar: AppBar(
-        title: const Text('DORAK Game'),
+        title: Text(loc.dorakGameTitle),
         backgroundColor: const Color(0xFFCE1126),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -308,33 +418,60 @@ class _GameScreenState extends State<GameScreen> {
         actions: [
           if (widget.isHost)
             IconButton(
-              tooltip: 'Host Controls',
+              tooltip: loc.hostControlsTooltip,
               icon: const Icon(Icons.tune),
               onPressed: _openHostMenu,
             ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          _buildGameHeader(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildQuestionCard(currentQuestion),
-                  const SizedBox(height: 20),
-                  _buildAnswerOptions(currentQuestion),
-                  const SizedBox(height: 20),
-                  if (!widget.isHost) _buildVoteButton(),
-                  if (widget.isHost) _buildVotesDisplay(),
-                  const SizedBox(height: 20),
-                ],
+          Column(
+            children: [
+              _buildGameHeader(context, syncColor),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildQuestionCard(context, currentQuestion),
+                      const SizedBox(height: 20),
+                      _buildAnswerOptions(context, currentQuestion),
+                      const SizedBox(height: 20),
+                      if (!widget.isHost) _buildVoteButton(context),
+                      if (widget.isHost) _buildVotesDisplay(context),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_isChatVisible)
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.7,
+                height: MediaQuery.of(context).size.height * 0.5,
+                child: ChatWidget(
+                  room: widget.room,
+                  user: widget.user,
+                  lobbyService: _lobbyService,
+                  l10n: loc,
+                ),
               ),
             ),
-          ),
-          // Host controls moved to AppBar menu
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          setState(() {
+            _isChatVisible = !_isChatVisible;
+          });
+        },
+        backgroundColor: Colors.green,
+        child: Icon(_isChatVisible ? Icons.close : Icons.chat),
       ),
     );
   }
@@ -348,7 +485,7 @@ class _GameScreenState extends State<GameScreen> {
         return SizedBox(
           height: height,
           child: HostControlPanel(
-            room: widget.room,
+            room: _currentRoom, // Pass _currentRoom instead of widget.room
             onPointsAdjust: _handlePointsAdjust,
             onTimerAdjust: _handleTimerAdjust,
             onNextQuestion: _handleNextQuestion,
@@ -363,7 +500,8 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildGameHeader() {
+  Widget _buildGameHeader(BuildContext context, Color syncColor) {
+    final loc = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(color: Colors.white),
@@ -372,21 +510,21 @@ class _GameScreenState extends State<GameScreen> {
           Expanded(
             child: Column(
               children: [
-                const Text('Team A',
-                    style: TextStyle(
+                Text(loc.teamA,
+                    style: const TextStyle(
                         fontWeight: FontWeight.bold, color: Color(0xFFCE1126))),
                 Text('$_displayPointsA',
                     style: const TextStyle(
                         fontSize: 20, fontWeight: FontWeight.bold)),
-                Text('${widget.room.teamA.length} players',
-                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                Text(loc.playersCount(widget.room.teamA.length),
+                    style: const TextStyle(fontSize: 16)),
               ],
             ),
           ),
           Column(
             children: [
-              const Text('TIME',
-                  style: TextStyle(
+              Text(loc.timeLabel,
+                  style: const TextStyle(
                       fontSize: 10,
                       color: Colors.grey,
                       fontWeight: FontWeight.bold)),
@@ -395,21 +533,28 @@ class _GameScreenState extends State<GameScreen> {
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFFCE1126))),
-              const Text('seconds',
-                  style: TextStyle(fontSize: 10, color: Colors.grey)),
+              Text(loc.secondsLabel,
+                  style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              const SizedBox(height: 4),
+              Container(
+                width: 8,
+                height: 8,
+                decoration:
+                    BoxDecoration(color: syncColor, shape: BoxShape.circle),
+              ),
             ],
           ),
           Expanded(
             child: Column(
               children: [
-                const Text('Team B',
-                    style: TextStyle(
+                Text(loc.teamB,
+                    style: const TextStyle(
                         fontWeight: FontWeight.bold, color: Color(0xFF007A3D))),
                 Text('$_displayPointsB',
                     style: const TextStyle(
                         fontSize: 20, fontWeight: FontWeight.bold)),
-                Text('${widget.room.teamB.length} players',
-                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                Text(loc.playersCount(widget.room.teamB.length),
+                    style: const TextStyle(fontSize: 16)),
               ],
             ),
           ),
@@ -418,7 +563,9 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildQuestionCard(Map<String, dynamic> question) {
+  Widget _buildQuestionCard(
+      BuildContext context, Map<String, dynamic> question) {
+    final loc = AppLocalizations.of(context)!;
     return Card(
       elevation: 4,
       child: Padding(
@@ -432,7 +579,7 @@ class _GameScreenState extends State<GameScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                question['category'] ?? 'General Knowledge',
+                question['category'] ?? loc.generalKnowledge,
                 style: const TextStyle(
                     color: Color(0xFFCE1126),
                     fontWeight: FontWeight.bold,
@@ -448,7 +595,10 @@ class _GameScreenState extends State<GameScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Question ${_currentQuestionIndex + 1} of ${_questions.length}',
+              loc.questionNumber(
+                (_currentQuestionIndex + 1),
+                (_questions.length),
+              ),
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],
@@ -457,13 +607,15 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildAnswerOptions(Map<String, dynamic> question) {
+  Widget _buildAnswerOptions(
+      BuildContext context, Map<String, dynamic> question) {
+    final loc = AppLocalizations.of(context)!;
     final options = List<String>.from(question['options'] ?? []);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Select your answer:',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        Text(loc.selectYourAnswer,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
         GridView.builder(
           shrinkWrap: true,
@@ -512,7 +664,8 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildVoteButton() {
+  Widget _buildVoteButton(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -524,13 +677,14 @@ class _GameScreenState extends State<GameScreen> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
-        child: const Text('SUBMIT VOTE',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        child: Text(loc.submitVote,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ),
     );
   }
 
-  Widget _buildVotesDisplay() {
+  Widget _buildVotesDisplay(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     final totalVotesA = widget.room.getTotalVotesForTeam('A');
     final totalVotesB = widget.room.getTotalVotesForTeam('B');
     return Card(
@@ -539,29 +693,30 @@ class _GameScreenState extends State<GameScreen> {
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            const Text('Team Votes',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            Text(loc.teamVotes,
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 Column(children: [
-                  const Text('Team A',
-                      style: TextStyle(
+                  Text(loc.teamA,
+                      style: const TextStyle(
                           color: Color(0xFFCE1126),
                           fontWeight: FontWeight.bold,
                           fontSize: 12)),
-                  Text('$totalVotesA votes',
+                  Text(loc.votesCount(totalVotesA),
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.bold)),
                 ]),
                 Column(children: [
-                  const Text('Team B',
-                      style: TextStyle(
+                  Text(loc.teamB,
+                      style: const TextStyle(
                           color: Color(0xFF007A3D),
                           fontWeight: FontWeight.bold,
                           fontSize: 12)),
-                  Text('$totalVotesB votes',
+                  Text(loc.votesCount(totalVotesB),
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.bold)),
                 ]),
@@ -570,8 +725,8 @@ class _GameScreenState extends State<GameScreen> {
             const SizedBox(height: 8),
             Text(
               widget.room.votingInProgress
-                  ? 'Voting in progress...'
-                  : 'Waiting for host...',
+                  ? loc.votingInProgress
+                  : loc.waitingForHost,
               style: TextStyle(
                 fontSize: 12,
                 color:
@@ -582,5 +737,33 @@ class _GameScreenState extends State<GameScreen> {
         ),
       ),
     );
+  }
+
+  void _startLocalCountdown() {
+    _countdown?.cancel();
+    if (_timerEndAtMs == null || !_isTimerRunning) return;
+    bool stopWritten = false;
+    void tick() {
+      if (!mounted || _timerEndAtMs == null) return;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final rem = ((_timerEndAtMs! - now) / 1000).ceil();
+      setState(() {
+        _remainingTime = rem.clamp(0, 9999);
+        if (_remainingTime <= 0) {
+          _isTimerRunning = false;
+          _countdown?.cancel();
+        }
+      });
+      // If time reached 0, and this device is the host, publish the stop once
+      if (_remainingTime <= 0 &&
+          !stopWritten &&
+          widget.user.id == widget.room.hostId) {
+        stopWritten = true;
+        _firebaseService.setTimer(widget.room.code, 0, running: false);
+      }
+    }
+
+    tick();
+    _countdown = Timer.periodic(const Duration(seconds: 1), (_) => tick());
   }
 }

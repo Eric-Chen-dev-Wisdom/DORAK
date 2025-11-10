@@ -20,7 +20,8 @@ class LobbyService {
 
     while (retryCount < maxRetries) {
       final roomCode = _generateRoomCode();
-      print('🟡 Generated room code: $roomCode (try ${retryCount + 1}/$maxRetries)');
+      print(
+          '🟡 Generated room code: $roomCode (try ${retryCount + 1}/$maxRetries)');
 
       try {
         final exists = await _firebaseService.doesRoomExist(roomCode);
@@ -43,7 +44,8 @@ class LobbyService {
         retryCount++;
         print('❌ Error creating room (attempt $retryCount): $e');
         if (retryCount >= maxRetries) {
-          throw Exception('Failed to create room after $maxRetries attempts: $e');
+          throw Exception(
+              'Failed to create room after $maxRetries attempts: $e');
         }
         await Future.delayed(Duration(seconds: retryCount));
       }
@@ -101,11 +103,13 @@ class LobbyService {
   Future<void> finalizeCategoriesAndStart(
       String roomCode, List<Category> categories) async {
     try {
-      final room = await _firebaseService.getRoom(roomCode);
+      GameRoom? room = await _firebaseService.getRoom(roomCode);
       if (room == null) throw Exception('Room not found');
       room.selectedCategories = categories;
       room.state = GameState.inGame;
       await _firebaseService.updateRoom(room);
+      // Start the synchronized timer explicitly
+      await _firebaseService.setTimer(room.code, 60, running: true);
       print('🏁 Room $roomCode moved to in-game');
     } catch (e) {
       print('❌ Error finalizing categories: $e');
@@ -119,11 +123,13 @@ class LobbyService {
     required List<Category> categories,
     required String difficulty, // 'all'|'easy'|'medium'|'hard'
     required int count,
+    String? langCode,
   }) async {
     try {
-      final room = await _firebaseService.getRoom(roomCode);
+      GameRoom? room = await _firebaseService.getRoom(roomCode);
       if (room == null) throw Exception('Room not found');
 
+      final String lang = (langCode ?? 'en').toLowerCase();
       final List<Map<String, dynamic>> pool = [];
       for (final cat in categories) {
         final snap = await FirebaseFirestore.instance
@@ -137,7 +143,10 @@ class LobbyService {
           final matches = difficulty == 'all' ||
               diffStr.toLowerCase().contains(difficulty.toLowerCase());
           if (!matches) continue;
-          final options = (data['options'] as List?)?.cast<String>() ?? const [];
+          final options =
+              (data['options_${lang}'] as List?)?.cast<String>() ??
+              (data['options'] as List?)?.cast<String>() ??
+              const [];
           final correct = data['correctAnswer'];
           int correctIndex = -1;
           if (correct is int) {
@@ -149,7 +158,9 @@ class LobbyService {
             'id': doc.id,
             'categoryId': cat.id,
             'category': cat.name,
-            'question': data['question'] ?? '',
+            'question': (data['question_${lang}'] as String?) ??
+                (data['question'] as String?) ??
+                '',
             'options': options,
             'correctAnswer': correctIndex,
             'difficulty': diffStr,
@@ -166,9 +177,42 @@ class LobbyService {
       room.preparedQuestions = selected;
       room.state = GameState.inGame;
       await _firebaseService.updateRoom(room);
-      print('dY"� Prepared ${selected.length} questions (diff=$difficulty) and started');
+      // Start the synchronized timer explicitly
+      await _firebaseService.setTimer(room.code, 60, running: true);
+      print(
+          'dY" Prepared ${selected.length} questions (diff=$difficulty) and started');
     } catch (e) {
-      print('�?O Error preparing questions: $e');
+      print('?O Error preparing questions: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateRoomSettings(String roomCode, List<String> categoryIds,
+      String difficulty, int questionCount) async {
+    try {
+      final room = await _firebaseService.getRoom(roomCode);
+      if (room == null) throw Exception('Room not found');
+
+      // Fetch Category objects from Firestore using their IDs
+      List<Category> selectedCategories = [];
+      for (String id in categoryIds) {
+        final categoryDoc = await FirebaseFirestore.instance
+            .collection('categories')
+            .doc(id)
+            .get();
+        if (categoryDoc.exists) {
+          selectedCategories.add(Category.fromJson(
+              {...categoryDoc.data()!, 'id': categoryDoc.id}));
+        }
+      }
+
+      room.selectedCategories = selectedCategories;
+      room.selectedDifficulty = difficulty;
+      room.questionCount = questionCount;
+      await _firebaseService.updateRoom(room);
+      print('✅ Updated room settings for $roomCode');
+    } catch (e) {
+      print('❌ Error updating room settings: $e');
       rethrow;
     }
   }
@@ -192,6 +236,16 @@ class LobbyService {
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getChatStream(String roomCode) {
     return _firebaseService.getChatStream(roomCode);
+  }
+
+  Future<void> setChatEnabled(String roomCode, bool enabled) async {
+    try {
+      await _firebaseService.updateRoomField(roomCode, 'chatEnabled', enabled);
+      print('💬 Chat for room $roomCode set to: $enabled');
+    } catch (e) {
+      print('❌ Error setting chat enabled status: $e');
+      rethrow;
+    }
   }
 
   // =========================================================
@@ -224,7 +278,7 @@ class LobbyService {
   // =========================================================
   String _generateRoomCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    return String.fromCharCodes(
-        Iterable.generate(6, (_) => chars.codeUnitAt(_random.nextInt(chars.length))));
+    return String.fromCharCodes(Iterable.generate(
+        6, (_) => chars.codeUnitAt(_random.nextInt(chars.length))));
   }
 }

@@ -67,4 +67,3 @@ List<Category> defaultCategories() => [
         imageAsset: 'assets/images/quick_thinking.png',
       ),
     ];
-

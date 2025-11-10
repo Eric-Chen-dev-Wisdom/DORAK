@@ -1,11 +1,15 @@
 import 'dart:async'; // ADD THIS IMPORT
 import 'package:flutter/material.dart';
+import 'package:DORAK/l10n/app_localizations.dart'; // for localization
 import '../models/room_model.dart';
+import '../services/firebase_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+// No server time offset; rely on host-written timestamps
 
 class HostControlPanel extends StatefulWidget {
   final GameRoom room;
   final Function(int) onPointsAdjust;
-  final Function(int) onTimerAdjust;
+  final void Function(int seconds, bool running) onTimerAdjust;
   final Function() onNextQuestion;
   final Function() onSkipQuestion;
   final Function(String) onPowerCardUsed;
@@ -35,6 +39,13 @@ class _HostControlPanelState extends State<HostControlPanel> {
   bool _isTimerRunning = false;
   late GameRoom _currentRoom;
   Timer? _timer; // Add this to track the timer
+  final FirebaseService _firebaseService = FirebaseService();
+  StreamSubscription? _roomSub;
+  int? _timerEndAtMs; // authoritative end time derived from Firestore
+  int? _lastTimerStampMs;
+  int? _lastServerTimer;
+  bool? _lastRunning;
+  int? _localStartAtMs; // guard against stale false snapshots right after start
 
   @override
   void initState() {
@@ -42,11 +53,88 @@ class _HostControlPanelState extends State<HostControlPanel> {
     _currentRoom = widget.room;
     _remainingTime = _currentRoom.currentTimer;
     _isTimerRunning = _currentRoom.isTimerRunning;
+    if (_isTimerRunning && _remainingTime == 0) {
+      _remainingTime =
+          60; // Default to 60 seconds if timer is running but time is 0
+    }
+
+    // Subscribe to room to mirror GameScreen's timer sync
+    _roomSub = _firebaseService.getRoomStream(_currentRoom.code).listen((snap) {
+      // Ignore local pending writes; wait for server-resolved data
+      if (snap.metadata.hasPendingWrites) return;
+      final data = snap.data();
+      if (data == null) return;
+      final room = GameRoom.fromJson(data); // Re-parse into a GameRoom object
+      // Debug timer payload (one line)
+      try {
+        final rawTs = data['timerUpdatedAt'];
+        final ver = data['timerVersion'];
+        final ctDbg = data['currentTimer'];
+        final runDbg = data['isTimerRunning'];
+        // ignore: avoid_print
+        print('[Timer][HP] pending=${snap.metadata.hasPendingWrites} cache=${snap.metadata.isFromCache} ver=$ver run=$runDbg ct=$ctDbg ts=$rawTs');
+      } catch (_) {}
+      final ct = room.currentTimer;
+      final running = room.isTimerRunning;
+      // Ignore transient snapshot where running is true but timer still 0
+      if (running && (ct == 0)) return;
+      // Ensure the server timestamp has resolved; skip if raw field is null
+      if (data['timerUpdatedAt'] == null) return;
+      final updatedAtRaw = data['timerUpdatedAt'];
+      final updatedAtMs = updatedAtRaw is Timestamp
+          ? updatedAtRaw.millisecondsSinceEpoch
+          : (updatedAtRaw is String
+              ? (DateTime.tryParse(updatedAtRaw)?.millisecondsSinceEpoch ??
+                  DateTime.now().millisecondsSinceEpoch)
+              : DateTime.now().millisecondsSinceEpoch);
+
+      // Check for changes to avoid unnecessary setState calls
+      final changed = _lastTimerStampMs != updatedAtMs ||
+          _lastServerTimer != ct ||
+          _lastRunning != running;
+      if (!changed) return;
+
+      _lastTimerStampMs = updatedAtMs;
+      _lastServerTimer = ct;
+      _lastRunning = running;
+
+      // Reset _localStartAtMs after a few seconds to allow new stop signals
+      if (_localStartAtMs != null &&
+          DateTime.now().millisecondsSinceEpoch > _localStartAtMs! + 5000) {
+        _localStartAtMs = null;
+      }
+
+      // Ignore stale false snapshot that predates local start IF we haven't reset _localStartAtMs
+      if (!running &&
+          _localStartAtMs != null &&
+          updatedAtMs < _localStartAtMs!) {
+        return;
+      }
+
+      setState(() {
+        _isTimerRunning = running;
+        _timerEndAtMs = running ? updatedAtMs + (ct * 1000) : null;
+        if (running && _timerEndAtMs != null) {
+          final nowMs = DateTime.now().millisecondsSinceEpoch;
+          final rem = ((_timerEndAtMs! - nowMs) / 1000).ceil();
+          _remainingTime = rem.clamp(0, 9999);
+        } else {
+          _remainingTime = ct;
+        }
+      });
+
+      if (running && _timerEndAtMs != null) {
+        _startTimerCountdown();
+      } else {
+        _timer?.cancel();
+      }
+    });
   }
 
   @override
   void dispose() {
     _timer?.cancel(); // Important: cancel timer when widget disposes
+    _roomSub?.cancel();
     super.dispose();
   }
 
@@ -55,17 +143,32 @@ class _HostControlPanelState extends State<HostControlPanel> {
 
     setState(() {
       _isTimerRunning = true;
+      if (_remainingTime == 0) _remainingTime = 60; // Ensure not 0 on start
+      // Predict end-at immediately for smooth local UI
+      final now = DateTime.now().millisecondsSinceEpoch;
+      _localStartAtMs = now;
+      _timerEndAtMs = now + (_remainingTime * 1000);
     });
 
     _startTimerCountdown();
-    widget.onTimerAdjust(_remainingTime);
+    // Single authoritative push to start synced countdown (via parent)
+    widget.onTimerAdjust(_remainingTime, true);
+    // Redundant safety write in case parent callback is interrupted
+    _firebaseService.setTimer(_currentRoom.code, _remainingTime, running: true);
   }
 
   void _startTimerCountdown() {
     // Cancel any existing timer first
     _timer?.cancel();
 
-    // Create new timer
+    // Do not run a local ticker when paused or without an end time
+    if (_timerEndAtMs == null || !_isTimerRunning) {
+      print(
+          'HostControlPanel: _startTimerCountdown prevented. _timerEndAtMs: $_timerEndAtMs, _isTimerRunning: $_isTimerRunning');
+      return;
+    }
+
+    // Create new timer (local UI only; avoid spamming network)
     _timer = Timer.periodic(Duration(seconds: 1), (timer) {
       // Check if widget is still mounted
       if (!mounted) {
@@ -73,23 +176,29 @@ class _HostControlPanelState extends State<HostControlPanel> {
         return;
       }
 
-      if (_remainingTime > 0) {
+      if (_timerEndAtMs != null && _isTimerRunning) {
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        final rem = ((_timerEndAtMs! - nowMs) / 1000).ceil();
         setState(() {
-          _remainingTime--;
+          _remainingTime = rem.clamp(0, 9999);
         });
-        widget.onTimerAdjust(_remainingTime);
-      } else {
-        setState(() {
-          _isTimerRunning = false;
-        });
-        timer.cancel();
-        // Auto-stop when time reaches 0
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Time\'s up!')),
-          );
+        if (rem <= 0) {
+          setState(() {
+            _isTimerRunning = false;
+            _timerEndAtMs = null;
+          });
+          timer.cancel();
+          // Do not push a stop here; GameScreen (host) will publish authoritative stop
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(AppLocalizations.of(context)!.timesUp)),
+            );
+          }
+          return;
         }
       }
+
+      // If we still have time and are running, nothing else to do; UI already updated from prediction
     });
   }
 
@@ -98,7 +207,12 @@ class _HostControlPanelState extends State<HostControlPanel> {
       _isTimerRunning = false;
     });
     _timer?.cancel(); // Cancel the timer
-    widget.onTimerAdjust(_remainingTime);
+    _timerEndAtMs = null;
+    _localStartAtMs = null; // Reset local start time on stop
+    widget.onTimerAdjust(_remainingTime, false);
+    // Safety write
+    _firebaseService.setTimer(_currentRoom.code, _remainingTime,
+        running: false);
   }
 
   void _resetTimer() {
@@ -107,18 +221,40 @@ class _HostControlPanelState extends State<HostControlPanel> {
       _remainingTime = 60;
       _isTimerRunning = false;
     });
-    widget.onTimerAdjust(_remainingTime);
+    _timerEndAtMs = null;
+    _localStartAtMs = null; // Reset local start time on reset
+    widget.onTimerAdjust(_remainingTime, false);
+    // Safety write
+    _firebaseService.setTimer(_currentRoom.code, _remainingTime,
+        running: false);
   }
 
   void _adjustTimer(int seconds) {
-    _timer?.cancel(); // Cancel timer when adjusting time
+    final wasRunning = _isTimerRunning;
     setState(() {
       _remainingTime += seconds;
       if (_remainingTime < 5) _remainingTime = 5; // Minimum 5 seconds
       if (_remainingTime > 300) _remainingTime = 300; // Maximum 5 minutes
-      _isTimerRunning = false; // Stop timer when adjusting
+
+      if (wasRunning) {
+        // Keep running and just jump to the new remaining time
+        // Restart local countdown to ensure cadence is clean
+        _timer?.cancel();
+        _timerEndAtMs =
+            DateTime.now().millisecondsSinceEpoch + (_remainingTime * 1000);
+        _startTimerCountdown();
+      } else {
+        // Stay paused; do not start the timer
+        _isTimerRunning = false;
+        _timerEndAtMs = null;
+      }
     });
-    widget.onTimerAdjust(_remainingTime);
+
+    // Single push to sync new remaining time across clients
+    widget.onTimerAdjust(_remainingTime, wasRunning);
+    // Safety write
+    _firebaseService.setTimer(_currentRoom.code, _remainingTime,
+        running: wasRunning);
   }
 
   void _adjustPoints(String team, int points) {
@@ -144,7 +280,8 @@ class _HostControlPanelState extends State<HostControlPanel> {
     // Call the callback to notify parent
     widget.onPointsAdjust(points);
 
-    print('Team $team: ${points > 0 ? '+' : ''}$points points');
+    print(
+        'Team $team: ${points > 0 ? '+' : ''}$points ${AppLocalizations.of(context)!.points}');
   }
 
   void _awardPoints(String team, int points) {
@@ -156,16 +293,20 @@ class _HostControlPanelState extends State<HostControlPanel> {
     widget.onPowerCardUsed(card);
 
     // Show feedback based on card type
+    final l10n = AppLocalizations.of(context)!;
     final cardEffects = {
-      'Double Points': 'Next correct answer will be worth double points!',
-      'Steal Points': 'Steal 2 points from the other team!',
-      'Reverse Turn': 'Question goes to the other team!',
-      'Skip Round': 'Skipping to next question!',
+      l10n.doublePoints: l10n
+          .doublePointsEffect, // e.g "Next correct answer will be worth double points!"
+      l10n.stealPoints:
+          l10n.stealPointsEffect, // e.g "Steal 2 points from the other team!"
+      l10n.reverseTurn:
+          l10n.reverseTurnEffect, // e.g "Question goes to the other team!"
+      l10n.skipRound: l10n.skipRoundEffect, // e.g "Skipping to next question!"
     };
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(cardEffects[card] ?? '$card activated!'),
+        content: Text(cardEffects[card] ?? '$card ${l10n.activated}!'),
         backgroundColor: Colors.green,
       ),
     );
@@ -173,6 +314,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
       child: Container(
         decoration: BoxDecoration(
@@ -239,14 +381,15 @@ class _HostControlPanelState extends State<HostControlPanel> {
   }
 
   Widget _buildHeader() {
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       children: [
         const Icon(Icons.admin_panel_settings,
             color: Color(0xFFCE1126), size: 24),
         const SizedBox(width: 8),
-        const Text(
-          'Host Controls',
-          style: TextStyle(
+        Text(
+          l10n.hostControls,
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
             color: Color(0xFFCE1126),
@@ -264,6 +407,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
   }
 
   Widget _buildGameStateSection() {
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       color: const Color(0xFFF8F9FA),
       child: Padding(
@@ -273,7 +417,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
           children: [
             Column(
               children: [
-                const Text('Room Code', style: TextStyle(fontSize: 12)),
+                Text(l10n.roomCode, style: const TextStyle(fontSize: 12)),
                 Text(_currentRoom.code,
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.bold)),
@@ -281,9 +425,9 @@ class _HostControlPanelState extends State<HostControlPanel> {
             ),
             Column(
               children: [
-                const Text('Game State', style: TextStyle(fontSize: 12)),
+                Text(l10n.gameState, style: const TextStyle(fontSize: 12)),
                 Text(
-                  _currentRoom.state.toString().split('.').last,
+                  _localizedGameState(_currentRoom.state),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -296,6 +440,22 @@ class _HostControlPanelState extends State<HostControlPanel> {
         ),
       ),
     );
+  }
+
+  String _localizedGameState(GameState state) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (state) {
+      case GameState.waiting:
+        return l10n.waiting;
+      case GameState.inGame:
+        return l10n.inGame;
+      case GameState.roundComplete:
+        return l10n.roundComplete;
+      case GameState.gameComplete:
+        return l10n.gameComplete;
+      default:
+        return '';
+    }
   }
 
   Color _getStateColor(GameState state) {
@@ -314,15 +474,28 @@ class _HostControlPanelState extends State<HostControlPanel> {
   }
 
   Widget _buildTimerSection() {
+    final l10n = AppLocalizations.of(context)!;
+    // Sync indicator similar to GameScreen
+    Color syncColor;
+    if (!_isTimerRunning) {
+      syncColor = Colors.grey;
+    } else if (_timerEndAtMs != null) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final pred = ((_timerEndAtMs! - now) / 1000).ceil();
+      final delta = (pred - _remainingTime).abs();
+      syncColor = delta <= 1 ? Colors.green : Colors.redAccent;
+    } else {
+      syncColor = Colors.amber; // waiting for end-time
+    }
     return Card(
       color: const Color(0xFFF8F9FA),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            const Text(
-              'Timer Control',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Text(
+              l10n.timerControl,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
@@ -332,6 +505,13 @@ class _HostControlPanelState extends State<HostControlPanel> {
                 fontWeight: FontWeight.bold,
                 color: _remainingTime <= 10 ? Colors.red : Color(0xFFCE1126),
               ),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              width: 10,
+              height: 10,
+              decoration:
+                  BoxDecoration(color: syncColor, shape: BoxShape.circle),
             ),
             const SizedBox(height: 8),
             Row(
@@ -352,7 +532,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
                       Icon(_isTimerRunning ? Icons.pause : Icons.play_arrow,
                           size: 20),
                       const SizedBox(width: 4),
-                      Text(_isTimerRunning ? 'Pause' : 'Start'),
+                      Text(_isTimerRunning ? l10n.pause : l10n.start),
                     ],
                   ),
                 ),
@@ -364,30 +544,31 @@ class _HostControlPanelState extends State<HostControlPanel> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.refresh, size: 20),
-                      SizedBox(width: 4),
-                      Text('Reset'),
+                      const Icon(Icons.refresh, size: 20),
+                      const SizedBox(width: 4),
+                      Text(l10n.reset),
                     ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            const Text('Quick Adjust:', style: TextStyle(fontSize: 14)),
+            Text(l10n.quickAdjust, style: const TextStyle(fontSize: 14)),
             const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
+                _buildTimeAdjustButton('-10s', Icons.timer_off,
+                    () => _adjustTimer(-10), l10n.minus10s),
                 _buildTimeAdjustButton(
-                    '-10s', Icons.timer_off, () => _adjustTimer(-10)),
+                    '-5s', Icons.remove, () => _adjustTimer(-5), l10n.minus5s),
                 _buildTimeAdjustButton(
-                    '-5s', Icons.remove, () => _adjustTimer(-5)),
-                _buildTimeAdjustButton('+5s', Icons.add, () => _adjustTimer(5)),
+                    '+5s', Icons.add, () => _adjustTimer(5), l10n.plus5s),
                 _buildTimeAdjustButton(
-                    '+10s', Icons.timer, () => _adjustTimer(10)),
+                    '+10s', Icons.timer, () => _adjustTimer(10), l10n.plus10s),
               ],
             ),
           ],
@@ -397,7 +578,9 @@ class _HostControlPanelState extends State<HostControlPanel> {
   }
 
   Widget _buildTimeAdjustButton(
-      String label, IconData icon, VoidCallback onPressed) {
+      String label, IconData icon, VoidCallback onPressed,
+      [String? localizedLabel]) {
+    // Allow fallback to label if no translation key provided.
     return Column(
       children: [
         IconButton(
@@ -405,21 +588,22 @@ class _HostControlPanelState extends State<HostControlPanel> {
           icon: Icon(icon, size: 20),
           color: label.contains('-') ? Colors.red : Colors.green,
         ),
-        Text(label, style: const TextStyle(fontSize: 10)),
+        Text(localizedLabel ?? label, style: const TextStyle(fontSize: 10)),
       ],
     );
   }
 
   Widget _buildPointsSection() {
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       color: const Color(0xFFF8F9FA),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            const Text(
-              'Points Control',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Text(
+              l10n.pointsControl,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
 
@@ -436,15 +620,15 @@ class _HostControlPanelState extends State<HostControlPanel> {
             const SizedBox(height: 8),
 
             // Quick Award Buttons
-            const Text('Award Points:', style: TextStyle(fontSize: 12)),
+            Text(l10n.awardPoints, style: const TextStyle(fontSize: 12)),
             const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildAwardButton('A', 1, 'Correct!'),
-                _buildAwardButton('A', 2, 'Great!'),
-                _buildAwardButton('B', 1, 'Correct!'),
-                _buildAwardButton('B', 2, 'Great!'),
+                _buildAwardButton('A', 1, l10n.correct),
+                _buildAwardButton('A', 2, l10n.great),
+                _buildAwardButton('B', 1, l10n.correct),
+                _buildAwardButton('B', 2, l10n.great),
               ],
             ),
           ],
@@ -454,6 +638,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
   }
 
   Widget _buildTeamPointsControl(String team, Color color, int points) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -466,7 +651,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
             child: Column(
               children: [
                 Text(
-                  'Team $team',
+                  '${l10n.team} $team',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: color,
@@ -481,7 +666,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
                   ),
                 ),
                 Text(
-                  '${team == 'A' ? _currentRoom.teamA.length : _currentRoom.teamB.length} players',
+                  '${team == 'A' ? _currentRoom.teamA.length : _currentRoom.teamB.length} ${l10n.players}',
                   style: const TextStyle(fontSize: 10, color: Colors.grey),
                 ),
               ],
@@ -516,6 +701,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
   }
 
   Widget _buildAwardButton(String team, int points, String label) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       children: [
         SizedBox(
@@ -527,16 +713,17 @@ class _HostControlPanelState extends State<HostControlPanel> {
                 team == 'A' ? Color(0xFFCE1126) : Color(0xFF007A3D),
             foregroundColor: Colors.white,
             mini: true,
-            child: Text('+$points', style: TextStyle(fontSize: 12)),
+            child: Text('+$points', style: const TextStyle(fontSize: 12)),
           ),
         ),
         const SizedBox(height: 2),
-        Text(team, style: TextStyle(fontSize: 10)),
+        Text('${l10n.team} $team', style: const TextStyle(fontSize: 10)),
       ],
     );
   }
 
   Widget _buildVotingSection() {
+    final l10n = AppLocalizations.of(context)!;
     final totalVotesA = _currentRoom.getTotalVotesForTeam('A');
     final totalVotesB = _currentRoom.getTotalVotesForTeam('B');
 
@@ -546,9 +733,9 @@ class _HostControlPanelState extends State<HostControlPanel> {
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            const Text(
-              'Voting Status',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Text(
+              l10n.votingStatus,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Row(
@@ -556,17 +743,19 @@ class _HostControlPanelState extends State<HostControlPanel> {
               children: [
                 Column(
                   children: [
-                    const Text('Team A Votes', style: TextStyle(fontSize: 12)),
+                    Text('${l10n.teamA} ${l10n.votes}',
+                        style: const TextStyle(fontSize: 12)),
                     Text('$totalVotesA',
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 Column(
                   children: [
-                    const Text('Team B Votes', style: TextStyle(fontSize: 12)),
+                    Text('${l10n.teamB} ${l10n.votes}',
+                        style: const TextStyle(fontSize: 12)),
                     Text('$totalVotesB',
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
@@ -582,7 +771,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text('Start Voting'),
+                  child: Text(l10n.startVoting),
                 ),
                 ElevatedButton(
                   onPressed: widget.onRevealAnswer,
@@ -590,7 +779,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text('Reveal Answer'),
+                  child: Text(l10n.revealAnswer),
                 ),
               ],
             ),
@@ -601,15 +790,16 @@ class _HostControlPanelState extends State<HostControlPanel> {
   }
 
   Widget _buildQuestionControls() {
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       color: const Color(0xFFF8F9FA),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            const Text(
-              'Question Controls',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Text(
+              l10n.questionControls,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Row(
@@ -618,7 +808,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
                   child: ElevatedButton.icon(
                     onPressed: widget.onNextQuestion,
                     icon: const Icon(Icons.navigate_next, size: 20),
-                    label: const Text('Next Question'),
+                    label: Text(l10n.nextQuestion),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color(0xFF007A3D),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -630,7 +820,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
                   child: ElevatedButton.icon(
                     onPressed: widget.onSkipQuestion,
                     icon: const Icon(Icons.skip_next, size: 20),
-                    label: const Text('Skip'),
+                    label: Text(l10n.skip),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -646,15 +836,16 @@ class _HostControlPanelState extends State<HostControlPanel> {
   }
 
   Widget _buildPowerCardsSection() {
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       color: const Color(0xFFF8F9FA),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            const Text(
-              'Power Cards',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Text(
+              l10n.powerCards,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             GridView.count(
@@ -665,14 +856,14 @@ class _HostControlPanelState extends State<HostControlPanel> {
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
               children: [
-                _buildPowerCardButton('Double Points', Icons.attach_money,
-                    Colors.amber, 'Double next points'),
-                _buildPowerCardButton('Steal Points', Icons.currency_exchange,
-                    Colors.purple, 'Steal 2 points'),
-                _buildPowerCardButton('Reverse Turn', Icons.swap_horiz,
-                    Colors.blue, 'Reverse question'),
-                _buildPowerCardButton('Skip Round', Icons.fast_forward,
-                    Colors.orange, 'Skip question'),
+                _buildPowerCardButton(l10n.doublePoints, Icons.attach_money,
+                    Colors.amber, l10n.doubleNextPoints),
+                _buildPowerCardButton(l10n.stealPoints, Icons.currency_exchange,
+                    Colors.purple, l10n.steal2Points),
+                _buildPowerCardButton(l10n.reverseTurn, Icons.swap_horiz,
+                    Colors.blue, l10n.reverseQuestion),
+                _buildPowerCardButton(l10n.skipRound, Icons.fast_forward,
+                    Colors.orange, l10n.skipQuestion),
               ],
             ),
           ],
@@ -713,13 +904,14 @@ class _HostControlPanelState extends State<HostControlPanel> {
   }
 
   Widget _buildGameControls() {
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       children: [
         Expanded(
           child: ElevatedButton.icon(
             onPressed: _showEndGameConfirmation,
             icon: const Icon(Icons.stop, size: 20),
-            label: const Text('End Game'),
+            label: Text(l10n.endGame),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
@@ -732,23 +924,25 @@ class _HostControlPanelState extends State<HostControlPanel> {
   }
 
   void _showEndGameConfirmation() {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('End Game?'),
-        content: const Text(
-            'Are you sure you want to end the current game? This cannot be undone.'),
+        title: Text(l10n.endGameQ), // "End Game?"
+        content: Text(l10n
+            .endGameWarning), // "Are you sure you want to end the current game? This cannot be undone."
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               widget.onEndGame();
             },
-            child: const Text('End Game', style: TextStyle(color: Colors.red)),
+            child:
+                Text(l10n.endGame, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),

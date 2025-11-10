@@ -1,5 +1,6 @@
 import 'user_model.dart';
 import 'category_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class GameRoom {
   final String code;
@@ -22,10 +23,12 @@ class GameRoom {
   String currentQuestionId;
   bool isTimerRunning;
   List<String> usedPowerCards;
+  DateTime timerUpdatedAt; // Changed to non-nullable
   // UI/event signals
   int shareNonce;
   String? shareBy;
   String? lastEvent;
+  bool chatEnabled;
   // Game preparation by host
   int questionCount;
   String selectedDifficulty; // 'all', 'easy', 'medium', 'hard'
@@ -53,9 +56,11 @@ class GameRoom {
     this.shareNonce = 0,
     this.shareBy,
     this.lastEvent,
+    this.chatEnabled = true,
     int? questionCount,
     String? selectedDifficulty,
     List<Map<String, dynamic>>? preparedQuestions,
+    required this.timerUpdatedAt, // Add 'required' modifier
   })  : scores = scores ?? {'teamA': 0, 'teamB': 0},
         usedPowerCards = usedPowerCards ?? [],
         questionCount = questionCount ?? 10,
@@ -79,6 +84,65 @@ class GameRoom {
       maxPlayers: 10,
       teamVotes: {'A': {}, 'B': {}},
       voteHistory: {'A': [], 'B': []},
+      timerUpdatedAt: DateTime.now(), // Initialize timerUpdatedAt
+    );
+  }
+
+  GameRoom copyWith({
+    String? code,
+    String? hostId,
+    List<UserModel>? teamA,
+    List<UserModel>? teamB,
+    List<Category>? selectedCategories,
+    GameState? state,
+    DateTime? createdAt,
+    int? currentRound,
+    Map<String, int>? scores,
+    int? maxPlayers,
+    Map<String, Map<String, int>>? teamVotes,
+    bool? votingInProgress,
+    int? correctAnswerIndex,
+    Map<String, List<int>>? voteHistory,
+    int? currentTimer,
+    String? currentQuestionId,
+    bool? isTimerRunning,
+    List<String>? usedPowerCards,
+    int? shareNonce,
+    String? shareBy,
+    String? lastEvent,
+    bool? chatEnabled,
+    int? questionCount,
+    String? selectedDifficulty,
+    List<Map<String, dynamic>>? preparedQuestions,
+    DateTime? timerUpdatedAt,
+  }) {
+    return GameRoom(
+      code: code ?? this.code,
+      hostId: hostId ?? this.hostId,
+      teamA: teamA ?? this.teamA,
+      teamB: teamB ?? this.teamB,
+      selectedCategories: selectedCategories ?? this.selectedCategories,
+      state: state ?? this.state,
+      createdAt: createdAt ?? this.createdAt,
+      currentRound: currentRound ?? this.currentRound,
+      scores: scores ?? this.scores,
+      maxPlayers: maxPlayers ?? this.maxPlayers,
+      teamVotes: teamVotes ?? this.teamVotes,
+      votingInProgress: votingInProgress ?? this.votingInProgress,
+      correctAnswerIndex: correctAnswerIndex ?? this.correctAnswerIndex,
+      voteHistory: voteHistory ?? this.voteHistory,
+      currentTimer: currentTimer ?? this.currentTimer,
+      currentQuestionId: currentQuestionId ?? this.currentQuestionId,
+      isTimerRunning: isTimerRunning ?? this.isTimerRunning,
+      usedPowerCards: usedPowerCards ?? this.usedPowerCards,
+      shareNonce: shareNonce ?? this.shareNonce,
+      shareBy: shareBy ?? this.shareBy,
+      lastEvent: lastEvent ?? this.lastEvent,
+      chatEnabled: chatEnabled ?? this.chatEnabled,
+      questionCount: questionCount ?? this.questionCount,
+      selectedDifficulty: selectedDifficulty ?? this.selectedDifficulty,
+      preparedQuestions: preparedQuestions ?? this.preparedQuestions,
+      timerUpdatedAt: timerUpdatedAt ?? this.timerUpdatedAt,
     );
   }
 
@@ -184,9 +248,11 @@ class GameRoom {
       'shareNonce': shareNonce,
       'shareBy': shareBy,
       'lastEvent': lastEvent,
+      'chatEnabled': chatEnabled,
       'questionCount': questionCount,
       'selectedDifficulty': selectedDifficulty,
       'preparedQuestions': preparedQuestions,
+      // Intentionally omit timerUpdatedAt here so only setTimer() controls it
     };
   }
 
@@ -253,12 +319,32 @@ class GameRoom {
       shareNonce: (json['shareNonce'] as num?)?.toInt() ?? 0,
       shareBy: json['shareBy'],
       lastEvent: json['lastEvent'],
+      chatEnabled: json['chatEnabled'] ?? true,
       questionCount: (json['questionCount'] as num?)?.toInt() ?? 10,
       selectedDifficulty: (json['selectedDifficulty'] ?? 'all') as String,
       preparedQuestions: List<Map<String, dynamic>>.from(
           (json['preparedQuestions'] as List?) ?? const []),
+      // Use server timestamp only; avoid host clock skew
+      timerUpdatedAt:
+          _parseDateTimeFromDynamic(json['timerUpdatedAt']) ?? DateTime.now(),
     );
   }
+}
+
+DateTime? _parseDateTimeFromDynamic(dynamic value) {
+  // Be tolerant: Firestore may return null for serverTimestamp on first local snapshot.
+  if (value == null) return null;
+  if (value is Timestamp) return value.toDate();
+  if (value is String) return DateTime.tryParse(value);
+  if (value is int) {
+    // Support optional millisecond epoch if ever provided
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
 }
 
 enum GameState {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/routes.dart';
-// import '../services/locale_service.dart';
+import '../services/locale_service.dart';
 
 /// if user tap the continue button the center of page slides like carousel in
 class BoardSlideShowWidget extends StatefulWidget {
@@ -94,7 +94,7 @@ class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {
                           description: t(
                               'Team up with your friends and family. Work together, compete, and answer questions as a team to score points!',
                               'كوّن فريقك مع أصدقائك وعائلتك. تعاونوا وتنافسوا وأجيبوا على الأسئلة لكسب النقاط!'),
-                          color: Colors.green,
+                          color: const Color.fromARGB(255, 96, 58, 202),
                         ),
                       ],
                     ),
@@ -106,6 +106,16 @@ class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {
                             'assets/images/slideshow3.png',
                             fit: BoxFit.cover,
                           ),
+                        ),
+                        _buildPage(
+                          context,
+                          // icon: Icons.language, // or any suitable icon
+                          title:
+                              t('Easily switch language', 'بدّل اللغة بسهولة'),
+                          description: t(
+                              'Seamlessly toggle between Arabic and English anytime during the game from the menu.',
+                              'يمكنك التبديل بسهولة بين العربية والإنجليزية في أي وقت من القائمة أثناء اللعبة.'),
+                          color: const Color.fromARGB(255, 158, 57, 216),
                         ),
                         Stack(
                           children: [
@@ -144,11 +154,13 @@ class _BoardSlideShowWidgetState extends State<BoardSlideShowWidget> {
                                     _selectedLanguage == 'en',
                                     _selectedLanguage == 'ar'
                                   ],
-                                  onPressed: (index) {
+                                  onPressed: (index) async {
                                     setState(() {
                                       _selectedLanguage =
                                           index == 0 ? 'en' : 'ar';
                                     });
+                                    await LocaleService.setLocale(
+                                        Locale(_selectedLanguage));
                                   },
                                   borderRadius: BorderRadius.circular(8),
                                   selectedColor: Colors.white,

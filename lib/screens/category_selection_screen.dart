@@ -2,12 +2,14 @@
 import 'package:flutter/material.dart';
 import '../models/category_model.dart';
 import '../data/default_categories.dart';
+import '../services/question_service.dart';
 import '../models/room_model.dart';
 import '../models/user_model.dart';
 import '../utils/constants.dart';
 import 'game_screen.dart';
 import '../services/lobby_service.dart';
 import 'dart:async';
+import 'package:DORAK/l10n/app_localizations.dart';
 
 class CategorySelectionScreen extends StatefulWidget {
   final GameRoom room;
@@ -28,11 +30,13 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
   final LobbyService _lobbyService = LobbyService();
   StreamSubscription<GameRoom?>? _roomSub;
   bool _navigatedToGame = false;
-  final List<Category> _availableCategories = defaultCategories();
+  // Will be populated from Firestore (localized). Fallback to defaults if empty
+  List<Category> _availableCategories = [];
+  final QuestionService _questionService = QuestionService();
 
   final List<Category> _selectedCategories = [];
   final Set<String> _selectedIds = <String>{};
-  late final Map<String, Category> _catalogById;
+  Map<String, Category> _catalogById = {};
   String _difficulty = 'all'; // 'all','easy','medium','hard'
   int _questionCount = 10; // host-chosen count
 
@@ -41,7 +45,10 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
   @override
   void initState() {
     super.initState();
-    _catalogById = {for (final c in _availableCategories) c.id: c};
+    // Best-effort: ensure categories exist in Firestore
+    // ignore: unawaited_futures
+    _questionService.seedDefaultsIfEmpty();
+    _catalogById = {};
     // Start with any existing selections (dedup by id)
     _selectedIds.addAll(widget.room.selectedCategories.map((c) => c.id));
     _selectedCategories
@@ -94,7 +101,9 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
           _selectedIds.add(category.id);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Maximum 8 categories allowed')),
+            SnackBar(
+                content:
+                    Text(AppLocalizations.of(context)!.maxCategoriesWarning)),
           );
         }
       }
@@ -112,7 +121,9 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
     if (!_isHost) return;
     if (_selectedIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least 1 category')),
+        SnackBar(
+            content: Text(
+                AppLocalizations.of(context)!.pleaseSelectAtLeastOneCategory)),
       );
       return;
     }
@@ -122,15 +133,17 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
       categories: List<Category>.from(_selectedCategories),
       difficulty: _difficulty,
       count: _questionCount,
+      langCode: Localizations.localeOf(context).languageCode,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
       appBar: AppBar(
-        title: const Text('Select Categories'),
+        title: Text(loc.selectCategoriesTitle),
         backgroundColor: const Color(0xFFCE1126),
       ),
       body: Column(
@@ -142,7 +155,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
             child: Column(
               children: [
                 Text(
-                  'Select 5-8 Categories',
+                  loc.selectCountLabel,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -151,7 +164,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${_selectedCategories.length} selected (Min: 5, Max: 8)',
+                  loc.selectedCountStatus(_selectedCategories.length),
                   style: TextStyle(
                     color: _selectedCategories.length >= 5
                         ? Colors.green
@@ -172,31 +185,44 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       initialValue: _difficulty,
-                      items: const [
-                        DropdownMenuItem(value: 'all', child: Text('All')),
-                        DropdownMenuItem(value: 'easy', child: Text('Easy')),
+                      items: [
                         DropdownMenuItem(
-                            value: 'medium', child: Text('Medium')),
-                        DropdownMenuItem(value: 'hard', child: Text('Hard')),
+                          value: 'all',
+                          child: Text(loc.difficultyAll),
+                        ),
+                        DropdownMenuItem(
+                          value: 'easy',
+                          child: Text(loc.difficultyEasy),
+                        ),
+                        DropdownMenuItem(
+                          value: 'medium',
+                          child: Text(loc.difficultyMedium),
+                        ),
+                        DropdownMenuItem(
+                          value: 'hard',
+                          child: Text(loc.difficultyHard),
+                        ),
                       ],
                       onChanged: (v) =>
                           setState(() => _difficulty = v ?? 'all'),
                       decoration:
-                          const InputDecoration(labelText: 'Difficulty'),
+                          InputDecoration(labelText: loc.difficultyLabel),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<int>(
                       initialValue: _questionCount,
-                      items: const [5, 10, 15, 20]
+                      items: [5, 10, 15, 20]
                           .map((n) => DropdownMenuItem(
-                              value: n, child: Text('$n questions')))
+                              value: n,
+                              child: Text(
+                                  '${n} ${loc.questionsLabel.toLowerCase()}')))
                           .toList(),
                       onChanged: (v) =>
                           setState(() => _questionCount = v ?? 10),
-                      decoration: const InputDecoration(
-                          labelText: 'Number of Questions'),
+                      decoration:
+                          InputDecoration(labelText: loc.questionsLabel),
                     ),
                   ),
                 ],
@@ -204,20 +230,30 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
             ),
 
           Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                // Fix overflow: slightly reduce aspect ratio for better fit
-                childAspectRatio: 0.90,
-              ),
-              itemCount: _availableCategories.length,
-              itemBuilder: (context, index) {
-                final category = _availableCategories[index];
-                final isSelected = _selectedIds.contains(category.id);
-                return _buildCategoryCard(category, isSelected);
+            child: StreamBuilder<List<Category>>(
+              stream: _questionService.watchCategories(),
+              builder: (context, snap) {
+                final cats = (snap.data ?? []);
+                // Fallback to bundled defaults if Firestore empty
+                final effective = cats.isNotEmpty ? cats : defaultCategories();
+                _availableCategories = effective;
+                _catalogById = {for (final c in effective) c.id: c};
+                return GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    // Fix overflow: slightly reduce aspect ratio for better fit
+                    childAspectRatio: 0.90,
+                  ),
+                  itemCount: effective.length,
+                  itemBuilder: (context, index) {
+                    final category = effective[index];
+                    final isSelected = _selectedIds.contains(category.id);
+                    return _buildCategoryCard(category, isSelected, loc);
+                  },
+                );
               },
             ),
           ),
@@ -235,15 +271,15 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: Text(
-                        'Start Game (${_selectedIds.length}/5)',
+                        loc.startGameButton(_selectedIds.length),
                         style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     )
-                  : const Text(
-                      'Waiting for host to select categories...',
+                  : Text(
+                      loc.waitingForHost,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                      style: const TextStyle(fontSize: 16, color: Colors.grey),
                     ),
             ),
           ),
@@ -252,7 +288,72 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
     );
   }
 
-  Widget _buildCategoryCard(Category category, bool isSelected) {
+  Widget _buildCategoryCard(
+      Category category, bool isSelected, AppLocalizations loc) {
+    String _nameFor(Category c) {
+      final lang = Localizations.localeOf(context).languageCode;
+      // If current locale is English, just show what we have
+      if (lang == 'en') return c.name;
+      // If Firestore already localized it (not equal to default EN), use it
+      final defaultEnName =
+          {for (final cat in defaultCategories()) cat.id: cat.name}[c.id];
+      if (c.name.isNotEmpty && c.name != (defaultEnName ?? '')) return c.name;
+      // Fallback to ARB keys for defaults
+      try {
+        switch (c.id) {
+          case '1':
+            return (loc as dynamic).cat_1Name as String;
+          case '2':
+            return (loc as dynamic).cat_2Name as String;
+          case '3':
+            return (loc as dynamic).cat_3Name as String;
+          case '4':
+            return (loc as dynamic).cat_4Name as String;
+          case '5':
+            return (loc as dynamic).cat_5Name as String;
+          case '6':
+            return (loc as dynamic).cat_6Name as String;
+          case '7':
+            return (loc as dynamic).cat_7Name as String;
+          case '8':
+            return (loc as dynamic).cat_8Name as String;
+        }
+      } catch (_) {}
+      return c.name;
+    }
+
+    String _descFor(Category c) {
+      final lang = Localizations.localeOf(context).languageCode;
+      if (lang == 'en') return c.description;
+      final defaultEnDesc = {
+        for (final cat in defaultCategories()) cat.id: cat.description
+      }[c.id];
+      if (c.description.isNotEmpty && c.description != (defaultEnDesc ?? '')) {
+        return c.description;
+      }
+      try {
+        switch (c.id) {
+          case '1':
+            return (loc as dynamic).cat_1Desc as String;
+          case '2':
+            return (loc as dynamic).cat_2Desc as String;
+          case '3':
+            return (loc as dynamic).cat_3Desc as String;
+          case '4':
+            return (loc as dynamic).cat_4Desc as String;
+          case '5':
+            return (loc as dynamic).cat_5Desc as String;
+          case '6':
+            return (loc as dynamic).cat_6Desc as String;
+          case '7':
+            return (loc as dynamic).cat_7Desc as String;
+          case '8':
+            return (loc as dynamic).cat_8Desc as String;
+        }
+      } catch (_) {}
+      return c.description;
+    }
+
     Color getCategoryColor(CategoryType type) {
       switch (type) {
         case CategoryType.trivia:
@@ -307,7 +408,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  category.name,
+                  _nameFor(category),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
@@ -318,7 +419,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  category.description,
+                  _descFor(category),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 10,

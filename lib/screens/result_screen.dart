@@ -4,6 +4,7 @@ import '../models/room_model.dart';
 import '../models/user_model.dart';
 import '../utils/constants.dart';
 import '../services/firebase_service.dart';
+import 'package:DORAK/l10n/app_localizations.dart';
 
 class ResultScreen extends StatelessWidget {
   final GameRoom room;
@@ -13,6 +14,7 @@ class ResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fs = FirebaseService();
+    final loc = AppLocalizations.of(context)!;
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: fs.getRoomStream(room.code),
       builder: (context, snap) {
@@ -67,12 +69,12 @@ class ResultScreen extends StatelessWidget {
         final isUserTeamA = inA && !inB ? true : (!inA && inB ? false : true);
         final userWon = isTie ? false : (isUserTeamA ? teamAWon : teamBWon);
         final bannerImage =
-            userWon ? 'assets/images/winner.png' : 'assets/images/loser.png';
+            userWon ? loc.winnerBannerPath : loc.loserBannerPath;
 
         return Scaffold(
           backgroundColor: AppConstants.backgroundColor,
           appBar: AppBar(
-            title: const Text('Game Results'),
+            title: Text(loc.gameResultsTitle),
             backgroundColor: const Color(0xFFCE1126),
           ),
           body: Stack(
@@ -115,10 +117,10 @@ class ResultScreen extends StatelessWidget {
                         const SizedBox(height: 12),
                         Text(
                           isTie
-                              ? "It's a Tie!"
+                              ? loc.itsATie
                               : teamAWon
-                                  ? '🎉 Team A Wins!'
-                                  : '🎉 Team B Wins!',
+                                  ? loc.teamAWins
+                                  : loc.teamBWins,
                           style: const TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -140,16 +142,18 @@ class ResultScreen extends StatelessWidget {
                             padding: const EdgeInsets.all(20),
                             child: Column(
                               children: [
-                                const Text(
-                                  'Final Scores',
-                                  style: TextStyle(
+                                Text(
+                                  loc.finalScores,
+                                  style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 const Divider(),
-                                _buildScoreRow('Team A', a, 0xFFCE1126),
-                                _buildScoreRow('Team B', b, 0xFF007A3D),
+                                _buildScoreRow(
+                                    context, loc.teamA, a, 0xFFCE1126),
+                                _buildScoreRow(
+                                    context, loc.teamB, b, 0xFF007A3D),
                               ],
                             ),
                           ),
@@ -164,7 +168,7 @@ class ResultScreen extends StatelessWidget {
                                     context, (route) => route.isFirst);
                               },
                               icon: const Icon(Icons.home),
-                              label: const Text('Back to Home'),
+                              label: Text(loc.backToHome),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFCE1126),
                                 foregroundColor: Colors.white,
@@ -176,7 +180,7 @@ class ResultScreen extends StatelessWidget {
                                 Navigator.pop(context);
                               },
                               icon: const Icon(Icons.refresh),
-                              label: const Text('Try Again'),
+                              label: Text(loc.tryAgain),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF007A3D),
                                 foregroundColor: Colors.white,
@@ -196,7 +200,9 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildScoreRow(String team, int score, int colorHex) {
+  Widget _buildScoreRow(
+      BuildContext context, String team, int score, int colorHex) {
+    final loc = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -211,7 +217,7 @@ class ResultScreen extends StatelessWidget {
             ),
           ),
           Text(
-            '$score pts',
+            loc.pointsAbbreviation(score),
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -222,7 +228,9 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTeamList(String teamName, List<dynamic> members, int colorHex) {
+  Widget _buildTeamList(BuildContext context, String teamName,
+      List<dynamic> members, int colorHex) {
+    final loc = AppLocalizations.of(context)!;
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -247,7 +255,9 @@ class ResultScreen extends StatelessWidget {
                   children: [
                     const Icon(Icons.person, size: 18, color: Colors.grey),
                     const SizedBox(width: 6),
-                    Text(user.displayName ?? 'Unknown Player'),
+                    Text(
+                      user.displayName ?? loc.unknownPlayer,
+                    ),
                   ],
                 ),
               ),

@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 class FirebaseInit {
   static bool _initialized = false;
   static bool useEmulators = false; // Use live Firebase project
+  // Approximate server clock offset in milliseconds (serverNow - localNow)
+  static int serverTimeOffsetMs = 0;
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -101,6 +103,34 @@ class FirebaseInit {
       print('✅ Auth state cleared');
     } catch (e) {
       print('❌ Error clearing auth state: $e');
+    }
+  }
+
+  // Compute server clock offset using a serverTimestamp round-trip.
+  static Future<void> syncServerTimeOffset() async {
+    try {
+      final col = FirebaseFirestore.instance.collection('time_sync');
+      final doc = col.doc('offset_probe');
+      await doc.set({'ts': FieldValue.serverTimestamp()});
+      // Fetch resolved timestamp from server source
+      final snap = await doc.get(const GetOptions(source: Source.server));
+      final data = snap.data();
+      if (data != null) {
+        final ts = data['ts'];
+        int serverMs;
+        if (ts is Timestamp) {
+          serverMs = ts.millisecondsSinceEpoch;
+        } else if (ts is int) {
+          serverMs = ts;
+        } else {
+          serverMs = DateTime.now().millisecondsSinceEpoch;
+        }
+        final localMs = DateTime.now().millisecondsSinceEpoch;
+        serverTimeOffsetMs = serverMs - localMs;
+        print('dYY� Server time offset (ms): ' + serverTimeOffsetMs.toString());
+      }
+    } catch (e) {
+      print('�?O Failed to sync server time offset: $e');
     }
   }
 }

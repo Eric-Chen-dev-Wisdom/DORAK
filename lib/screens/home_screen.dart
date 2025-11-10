@@ -32,7 +32,6 @@ class _HomeScreenState extends State<HomeScreen> {
         arguments: user,
       );
     } catch (e) {
-      // Optionally, show an error here
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -52,19 +51,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
-      // Remove backgroundColor and use a background image instead
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background image
+          // Localized background image alternative? (this is just for illustration)
           Image.asset(
             'assets/images/background.png',
             width: double.infinity,
-            fit: BoxFit.fitHeight, // Fit image for width
+            fit: BoxFit.fitHeight,
           ),
-
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -72,43 +69,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 30),
-                  // Logo Section with image
-                  // Stack(
-                  //   alignment: Alignment.center,
-                  //   children: [
-                  //     // Main logo container with image
-                  //     Container(
-                  //       width: 220,
-                  //       height: 120,
-                  //       decoration: BoxDecoration(
-                  //         borderRadius: BorderRadius.circular(20),
-                  //       ),
-                  //       child: ClipRRect(
-                  //         borderRadius: BorderRadius.circular(20),
-                  //         child: Image.asset(
-                  //           'assets/images/logo.png', // Your logo image
-                  //           fit: BoxFit.cover,
-                  //           width: double.infinity,
-                  //           height: double.infinity,
-                  //         ),
-                  //       ),
-                  //     ),
-                  //   ],
-                  // ),
-                  // Tagline
-                  // const Text(
-                  //   'لِصةِ للطائفةِ والأكصدِفَاءِ\nA game that brings together family and friends',
+                  // Localized Logo or Tagline (commented out since not used)
+                  // Text(
+                  //   loc.tagline,
                   //   textAlign: TextAlign.center,
-                  //   style: TextStyle(
+                  //   style: const TextStyle(
                   //     fontSize: 16,
                   //     color: AppConstants.textColor,
                   //   ),
                   // ),
                   const Spacer(),
-                  // Carousel removed as requested
-
                   const Spacer(),
-
                   // Action Buttons
                   Column(
                     children: [
@@ -128,8 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Text(
-                              loc?.createNewRoom ?? 'Create Account',
-                              // 'Create Account' fallback for compatibility
+                              loc.createNewRoom,
                               style: const TextStyle(fontSize: 18),
                             ),
                           ),
@@ -158,14 +128,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                       CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : Text(
-                                  loc?.continueGuest ?? 'Play as Guest',
+                                  loc.guestButton,
                                   style: const TextStyle(fontSize: 18),
                                 ),
                         ),
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 40),
                 ],
               ),

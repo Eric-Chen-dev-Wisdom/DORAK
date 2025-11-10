@@ -51,7 +51,9 @@ class FirebaseService {
             'teamAVotes': {},
             'teamBVotes': {},
             'isTimerRunning': true,
-          });
+            'currentTimer': 60,
+            'timerUpdatedAt': FieldValue.serverTimestamp(),
+            });
         }
       });
     } catch (e) {
@@ -76,7 +78,8 @@ class FirebaseService {
 
   Future<void> updateRoom(GameRoom room) async {
     try {
-      await _firestore.collection('rooms').doc(room.code).update(room.toJson());
+      final Map<String, dynamic> roomJson = room.toJson();
+      await _firestore.collection('rooms').doc(room.code).update(roomJson);
       print('✅ Room updated: ${room.code}');
     } catch (e) {
       print('❌ Error updating room: $e');
@@ -202,6 +205,17 @@ class FirebaseService {
         .snapshots();
   }
 
+  Future<void> updateRoomField(
+      String roomCode, String field, dynamic value) async {
+    try {
+      await _firestore.collection('rooms').doc(roomCode).update({ field: value, if (field == 'isTimerRunning' || field == 'currentTimer') 'timerUpdatedAt': FieldValue.serverTimestamp(), });
+      print('✅ Room $roomCode field $field updated to $value');
+    } catch (e) {
+      print('❌ Error updating room field: $e');
+      rethrow;
+    }
+  }
+
   // =========================================================
   // VOTING SYSTEM
   // =========================================================
@@ -211,7 +225,7 @@ class FirebaseService {
         'votingInProgress': true,
         'teamAVotes': {},
         'teamBVotes': {},
-      });
+        });
       print('🟢 Voting started for $roomCode');
     } catch (e) {
       print('❌ Error starting voting: $e');
@@ -251,6 +265,8 @@ class FirebaseService {
     try {
       await _firestore.collection('rooms').doc(roomCode).update({
         'votingInProgress': false,
+        'isTimerRunning': false, // Ensure timer is stopped
+        // Update timestamp
       });
       print('🟥 Voting ended for $roomCode');
     } catch (e) {
@@ -272,6 +288,25 @@ class FirebaseService {
       print('🏆 Updated points — A: $teamAPoints, B: $teamBPoints');
     } catch (e) {
       print('❌ Error updating team points: $e');
+    }
+  }
+
+  // =========================================================
+  // TIMER SYNC
+  // =========================================================
+  Future<void> setTimer(String roomCode, int seconds,
+      {bool running = true}) async {
+    try {
+      await _firestore.collection('rooms').doc(roomCode).update({
+        'currentTimer': seconds,
+        'isTimerRunning': running,
+        'timerUpdatedAt': FieldValue.serverTimestamp(),
+        // Force snapshot change even if values repeat within same second
+        'timerVersion': FieldValue.increment(1),
+      });
+    } catch (e) {
+      // ignore: avoid_print
+      print('Timer update error: $e');
     }
   }
 
@@ -305,3 +340,7 @@ class FirebaseService {
     }
   }
 }
+
+
+
+
