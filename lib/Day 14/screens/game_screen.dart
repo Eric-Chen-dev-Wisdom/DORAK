@@ -214,8 +214,9 @@ class _GameScreenState extends State<GameScreen> {
     });
     
     final bool isHost = widget.user.id == _currentRoom.hostId;
-    // Do not auto-start voting or timer on game load.
-    // Host must explicitly start from HostControlPanel.
+    if (!_currentRoom.votingInProgress && isHost) {
+      _currentRoom.startVoting();
+    }
   }
 
   // Add real-time votes listener
@@ -340,21 +341,14 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  void _handleEndGame() async {
-    // Update Firebase state so all players see the game has ended
-    await _firebaseService.endGame(widget.room.code);
-    // The navigation will happen automatically when the room stream
-    // detects the state change to 'GameState.gameComplete'
-    // But we also navigate immediately for the host for better UX
-    if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              ResultScreen(room: _currentRoom, user: widget.user),
-        ),
-      );
-    }
+  void _handleEndGame() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            ResultScreen(room: widget.room, user: widget.user),
+      ),
+    );
   }
 
   void _handleStartVoting() async {

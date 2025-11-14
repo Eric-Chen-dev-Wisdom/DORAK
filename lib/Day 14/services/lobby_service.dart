@@ -124,6 +124,8 @@ class LobbyService {
       room.selectedCategories = categories;
       room.state = GameState.inGame;
       await _firebaseService.updateRoom(room);
+      // Start the synchronized timer explicitly
+      await _firebaseService.setTimer(room.code, 60, running: true);
       print('🏁 Room $roomCode moved to in-game');
     } catch (e) {
       print('❌ Error finalizing categories: $e');
@@ -329,6 +331,8 @@ class LobbyService {
       room.preparedQuestions = selected;
       room.state = GameState.inGame;
       await _firebaseService.updateRoom(room);
+      // Start the synchronized timer explicitly
+      await _firebaseService.setTimer(room.code, 60, running: true);
       print(
           'dY" Prepared ${selected.length} questions (diff=$difficulty) and started');
     } catch (e) {

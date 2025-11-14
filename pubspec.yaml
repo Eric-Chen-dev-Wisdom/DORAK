@@ -43,6 +43,8 @@ flutter:
   generate: true
   assets:
     - assets/images/
+    - lib/l10n/app_en.arb
+    - lib/l10n/app_ar.arb
 
 l10n:
   arb-dir: lib/l10n
