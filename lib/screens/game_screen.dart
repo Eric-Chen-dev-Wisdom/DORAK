@@ -49,7 +49,7 @@ class _GameScreenState extends State<GameScreen> {
   int _displayPointsA = 0;
   int _displayPointsB = 0;
   late GameRoom _currentRoom;
-  
+
   // Add real-time vote tracking
   Map<String, dynamic> _currentVotes = {'teamAVotes': {}, 'teamBVotes': {}};
   StreamSubscription? _votesSub;
@@ -80,8 +80,7 @@ class _GameScreenState extends State<GameScreen> {
           .get();
       for (final doc in snap.docs) {
         final data = doc.data();
-        final options =
-            (data['options_${lang}'] as List?)?.cast<String>() ??
+        final options = (data['options_${lang}'] as List?)?.cast<String>() ??
             (data['options'] as List?)?.cast<String>() ??
             const [];
         final correct = data['correctAnswer'];
@@ -121,7 +120,7 @@ class _GameScreenState extends State<GameScreen> {
     _ackPowerCards.addAll(_currentRoom.usedPowerCards);
 
     _loadQuestions();
-    
+
     // Start listening to votes in real-time
     _startVotesListener();
 
@@ -129,19 +128,20 @@ class _GameScreenState extends State<GameScreen> {
       if (snap.metadata.hasPendingWrites) return;
       final data = snap.data();
       if (data == null) return;
-      
+
       try {
         final rawTs = data['timerUpdatedAt'];
         final ver = data['timerVersion'];
         final ctDbg = data['currentTimer'];
         final runDbg = data['isTimerRunning'];
-        print('[Timer][GS] pending=${snap.metadata.hasPendingWrites} cache=${snap.metadata.isFromCache} ver=$ver run=$runDbg ct=$ctDbg ts=$rawTs');
+        print(
+            '[Timer][GS] pending=${snap.metadata.hasPendingWrites} cache=${snap.metadata.isFromCache} ver=$ver run=$runDbg ct=$ctDbg ts=$rawTs');
       } catch (_) {}
-      
+
       final room = GameRoom.fromJson(data);
       final idx = (data['currentRound'] as num?)?.toInt() ?? 0;
       final state = data['state'] as String?;
-      
+
       if (mounted) {
         setState(() {
           _currentRoom = room;
@@ -154,7 +154,7 @@ class _GameScreenState extends State<GameScreen> {
             _displayPointsB =
                 (scores['teamB'] as num?)?.toInt() ?? _displayPointsB;
           }
-          
+
           if (data['timerUpdatedAt'] == null) {
             return;
           }
@@ -166,7 +166,7 @@ class _GameScreenState extends State<GameScreen> {
                   : DateTime.now());
           final ct = _currentRoom.currentTimer;
           final running = _currentRoom.isTimerRunning;
-          
+
           if (running && (ct == 0)) return;
           {
             int updatedAtMs = ts.millisecondsSinceEpoch;
@@ -212,15 +212,17 @@ class _GameScreenState extends State<GameScreen> {
         );
       }
     });
-    
+
     final bool isHost = widget.user.id == _currentRoom.hostId;
-    // Do not auto-start voting or timer on game load.
-    // Host must explicitly start from HostControlPanel.
+    if (!_currentRoom.votingInProgress && isHost) {
+      _currentRoom.startVoting();
+    }
   }
 
   // Add real-time votes listener
   void _startVotesListener() {
-    _votesSub = _firebaseService.getVotesStream(widget.room.code).listen((votes) {
+    _votesSub =
+        _firebaseService.getVotesStream(widget.room.code).listen((votes) {
       if (mounted) {
         setState(() {
           _currentVotes = votes;
@@ -244,18 +246,18 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _handleVoteSubmit() async {
-  if (_selectedAnswerIndex == -1) return;
+    if (_selectedAnswerIndex == -1) return;
 
-  // Determine user's team - check both teams properly
-  final userTeam = _currentRoom.teamA.any((u) => u.id == widget.user.id) 
-      ? 'A' 
-      : (_currentRoom.teamB.any((u) => u.id == widget.user.id) ? 'B' : 'A');
+    // Determine user's team - check both teams properly
+    final userTeam = _currentRoom.teamA.any((u) => u.id == widget.user.id)
+        ? 'A'
+        : (_currentRoom.teamB.any((u) => u.id == widget.user.id) ? 'B' : 'A');
 
-  await _firebaseService.submitVote(
-      _currentRoom.code, userTeam, widget.user.id, _selectedAnswerIndex);
+    await _firebaseService.submitVote(
+        _currentRoom.code, userTeam, widget.user.id, _selectedAnswerIndex);
 
-  _showVoteSubmitted();
-}
+    _showVoteSubmitted();
+  }
 
   void _showVoteSubmitted() {
     final loc = AppLocalizations.of(context)!;
@@ -340,21 +342,14 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  void _handleEndGame() async {
-    // Update Firebase state so all players see the game has ended
-    await _firebaseService.endGame(widget.room.code);
-    // The navigation will happen automatically when the room stream
-    // detects the state change to 'GameState.gameComplete'
-    // But we also navigate immediately for the host for better UX
-    if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              ResultScreen(room: _currentRoom, user: widget.user),
-        ),
-      );
-    }
+  void _handleEndGame() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            ResultScreen(room: widget.room, user: widget.user),
+      ),
+    );
   }
 
   void _handleStartVoting() async {
@@ -428,17 +423,17 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   // Helper method to get real-time vote counts
- int get _totalVotesA {
-  final teamAVotes = _currentVotes['teamAVotes'];
-  if (teamAVotes is Map) return teamAVotes.length;
-  return 0;
-}
+  int get _totalVotesA {
+    final teamAVotes = _currentVotes['teamAVotes'];
+    if (teamAVotes is Map) return teamAVotes.length;
+    return 0;
+  }
 
-int get _totalVotesB {
-  final teamBVotes = _currentVotes['teamBVotes'];
-  if (teamBVotes is Map) return teamBVotes.length;
-  return 0;
-}
+  int get _totalVotesB {
+    final teamBVotes = _currentVotes['teamBVotes'];
+    if (teamBVotes is Map) return teamBVotes.length;
+    return 0;
+  }
 
   @override
   Widget build(BuildContext context) {

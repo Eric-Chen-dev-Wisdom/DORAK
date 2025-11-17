@@ -51,7 +51,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -68,16 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 30),
-                  // Localized Logo or Tagline (commented out since not used)
-                  // Text(
-                  //   loc.tagline,
-                  //   textAlign: TextAlign.center,
-                  //   style: const TextStyle(
-                  //     fontSize: 16,
-                  //     color: AppConstants.textColor,
-                  //   ),
-                  // ),
+                  const SizedBox(height: 16),
                   const Spacer(),
                   const Spacer(),
                   // Action Buttons
@@ -90,17 +80,20 @@ class _HomeScreenState extends State<HomeScreen> {
                             NavigationService.navigateTo(AppRoutes.login);
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppConstants.primaryRed,
-                            foregroundColor: Colors.white,
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: AppConstants.primaryRed,
+                            shadowColor: Colors.transparent,
+                            side: const BorderSide(color: Color(0xFFCE1126)),
+                            padding: const EdgeInsets.all(16),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(35),
                             ),
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Text(
-                              loc.createNewRoom,
-                              style: const TextStyle(fontSize: 18),
+                          child: const Text(
+                            'Create Account',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -111,13 +104,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: OutlinedButton(
                           onPressed: _isLoggingIn ? null : _handleGuestLogin,
                           style: OutlinedButton.styleFrom(
-                            backgroundColor:
-                                const Color.fromARGB(255, 255, 255, 255),
+                            backgroundColor: Colors.transparent,
                             foregroundColor: AppConstants.primaryRed,
                             side: const BorderSide(color: Color(0xFFCE1126)),
                             padding: const EdgeInsets.all(16),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(35),
                             ),
                           ),
                           child: _isLoggingIn
@@ -127,9 +119,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                   child:
                                       CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : Text(
-                                  loc.guestButton,
-                                  style: const TextStyle(fontSize: 18),
+                              : const Text(
+                                  'Play as Guest',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                         ),
                       ),

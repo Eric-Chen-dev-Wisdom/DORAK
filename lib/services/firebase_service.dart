@@ -61,21 +61,6 @@ class FirebaseService {
     }
   }
 
-  // End the game manually (called when host clicks "End game")
-  Future<void> endGame(String roomCode) async {
-    try {
-      await _firestore.collection('rooms').doc(roomCode).update({
-        'state': 'GameState.gameComplete',
-        'votingInProgress': false,
-        'isTimerRunning': false,
-      });
-      print('🛑 Game ended manually for $roomCode');
-    } catch (e) {
-      print('❌ Error ending game: $e');
-      rethrow;
-    }
-  }
-
   // =========================================================
   // ROOM CREATION / UPDATE / FETCH
   // =========================================================
