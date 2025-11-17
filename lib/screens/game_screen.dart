@@ -8,7 +8,6 @@ import '../widgets/host_control_panel.dart';
 import '../utils/constants.dart';
 import 'result_screen.dart';
 import '../services/firebase_service.dart';
-import '../services/question_service.dart';
 // Using host-written timestamps only; no server offset
 import '../widgets/chat_widget.dart';
 import '../services/lobby_service.dart';
@@ -34,13 +33,11 @@ class _GameScreenState extends State<GameScreen> {
   int _selectedAnswerIndex = -1;
   int _remainingTime = 60;
   bool _isTimerRunning = false;
-  final Map<String, int> _teamVotes = {'A': 0, 'B': 0};
   Timer? _countdown;
   int? _timerEndAtMs;
   bool _isChatVisible = false;
 
   final FirebaseService _firebaseService = FirebaseService();
-  final QuestionService _questionService = QuestionService();
   final LobbyService _lobbyService = LobbyService();
 
   List<Map<String, dynamic>> _questions = [];
@@ -185,7 +182,12 @@ class _GameScreenState extends State<GameScreen> {
               if (running && _timerEndAtMs != null) {
                 final nowMs = DateTime.now().millisecondsSinceEpoch;
                 final rem = ((_timerEndAtMs! - nowMs) / 1000).ceil();
-                _remainingTime = rem.clamp(0, 9999);
+                // Ensure remaining time is reasonable - if calculation is way off, use server value
+                if (rem > ct + 5 || rem < 0) {
+                  _remainingTime = ct;
+                } else {
+                  _remainingTime = rem.clamp(0, ct + 5);
+                }
                 _startLocalCountdown();
               } else {
                 _countdown?.cancel();
@@ -397,6 +399,14 @@ class _GameScreenState extends State<GameScreen> {
     int correctB =
         teamBVotes.values.where((v) => v == correctAnswerIndex).length;
 
+    // Check if double points power card was used
+    final hasDoublePoints =
+        _currentRoom.usedPowerCards.contains('double_points');
+    if (hasDoublePoints) {
+      correctA *= 2;
+      correctB *= 2;
+    }
+
     int pointsA = widget.room.teamAPoints + correctA;
     int pointsB = widget.room.teamBPoints + correctB;
 
@@ -409,15 +419,16 @@ class _GameScreenState extends State<GameScreen> {
       widget.room.votingInProgress = false;
     });
 
+    final l10n = AppLocalizations.of(context)!;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          AppLocalizations.of(context)!.answerRevealed(
-            correctA,
-            correctB,
-          ),
+          hasDoublePoints
+              ? '${l10n.answerRevealed(correctA, correctB)} (${l10n.doublePoints} activated!)'
+              : l10n.answerRevealed(correctA, correctB),
         ),
-        backgroundColor: Colors.blue,
+        backgroundColor: hasDoublePoints ? Colors.purple : Colors.blue,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -800,7 +811,7 @@ class _GameScreenState extends State<GameScreen> {
       final now = DateTime.now().millisecondsSinceEpoch;
       final rem = ((_timerEndAtMs! - now) / 1000).ceil();
       setState(() {
-        _remainingTime = rem.clamp(0, 9999);
+        _remainingTime = rem > 0 ? rem : 0;
         if (_remainingTime <= 0) {
           _isTimerRunning = false;
           _countdown?.cancel();

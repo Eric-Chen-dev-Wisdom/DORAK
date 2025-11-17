@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import '../utils/constants.dart';
 import '../services/navigation_service.dart';
@@ -444,6 +443,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 child: ElevatedButton(
                   onPressed: _joinRoomWithCode,
                   style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF007A3D),
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     textStyle: const TextStyle(fontSize: 18),
                   ),

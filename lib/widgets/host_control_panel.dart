@@ -82,7 +82,8 @@ class _HostControlPanelState extends State<HostControlPanel> {
         final ctDbg = data['currentTimer'];
         final runDbg = data['isTimerRunning'];
         // ignore: avoid_print
-        print('[Timer][HP] pending=${snap.metadata.hasPendingWrites} cache=${snap.metadata.isFromCache} ver=$ver run=$runDbg ct=$ctDbg ts=$rawTs');
+        print(
+            '[Timer][HP] pending=${snap.metadata.hasPendingWrites} cache=${snap.metadata.isFromCache} ver=$ver run=$runDbg ct=$ctDbg ts=$rawTs');
       } catch (_) {}
       final ct = room.currentTimer;
       final running = room.isTimerRunning;
@@ -127,7 +128,12 @@ class _HostControlPanelState extends State<HostControlPanel> {
         if (running && _timerEndAtMs != null) {
           final nowMs = DateTime.now().millisecondsSinceEpoch;
           final rem = ((_timerEndAtMs! - nowMs) / 1000).ceil();
-          _remainingTime = rem.clamp(0, 9999);
+          // Ensure remaining time is reasonable - if calculation is way off, use server value
+          if (rem > ct + 5 || rem < 0) {
+            _remainingTime = ct;
+          } else {
+            _remainingTime = rem.clamp(0, ct + 5);
+          }
         } else {
           _remainingTime = ct;
         }
@@ -161,10 +167,8 @@ class _HostControlPanelState extends State<HostControlPanel> {
     });
 
     _startTimerCountdown();
-    // Single authoritative push to start synced countdown (via parent)
-    widget.onTimerAdjust(_remainingTime, true);
-    // Redundant safety write in case parent callback is interrupted
-    _firebaseService.setTimer(_currentRoom.code, _remainingTime, running: true);
+    // Start voting when timer starts (synchronization fix)
+    widget.onStartVoting();
   }
 
   void _startTimerCountdown() {
@@ -190,7 +194,7 @@ class _HostControlPanelState extends State<HostControlPanel> {
         final nowMs = DateTime.now().millisecondsSinceEpoch;
         final rem = ((_timerEndAtMs! - nowMs) / 1000).ceil();
         setState(() {
-          _remainingTime = rem.clamp(0, 9999);
+          _remainingTime = rem > 0 ? rem : 0;
         });
         if (rem <= 0) {
           setState(() {
@@ -355,6 +359,9 @@ class _HostControlPanelState extends State<HostControlPanel> {
     final l10n = AppLocalizations.of(context)!;
     final title = _powerCardTitle(cardId, l10n);
 
+    // Apply power card effect BEFORE marking as used
+    await _applyPowerCardEffect(cardId, l10n);
+
     widget.onPowerCardUsed(cardId);
 
     final previousCards = List<String>.from(_currentRoom.usedPowerCards);
@@ -374,7 +381,8 @@ class _HostControlPanelState extends State<HostControlPanel> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(cardEffects[cardId] ?? '$title ${l10n.activated}!'),
-        backgroundColor: Colors.green,
+        backgroundColor: Colors.purple,
+        duration: const Duration(seconds: 3),
       ),
     );
 
@@ -397,9 +405,73 @@ class _HostControlPanelState extends State<HostControlPanel> {
     }
   }
 
+  // Apply the actual effect of each power card
+  Future<void> _applyPowerCardEffect(
+      String cardId, AppLocalizations l10n) async {
+    switch (cardId) {
+      case _cardDoublePoints:
+        // Double the points for the next correct answer
+        // This is tracked by the card being in usedPowerCards
+        // The game logic should check this when awarding points
+        break;
+
+      case _cardStealPoints:
+        // Steal 2 points from the other team
+        // Show dialog to choose which team steals from which
+        final result = await showDialog<String>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(l10n.stealPoints),
+            content:
+                const Text('Which team steals 2 points from the other team?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, 'A'),
+                child: Text('${l10n.teamA} steals from ${l10n.teamB}'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, 'B'),
+                child: Text('${l10n.teamB} steals from ${l10n.teamA}'),
+              ),
+            ],
+          ),
+        );
+
+        if (result != null) {
+          if (result == 'A') {
+            // Team A steals 2 points from Team B
+            await _adjustPoints('A', 2);
+            await _adjustPoints('B', -2);
+          } else {
+            // Team B steals 2 points from Team A
+            await _adjustPoints('B', 2);
+            await _adjustPoints('A', -2);
+          }
+        }
+        break;
+
+      case _cardReverseTurn:
+        // This would swap which team answers - implementation depends on game flow
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.reverseTurnEffect),
+            backgroundColor: Colors.blue,
+          ),
+        );
+        break;
+
+      case _cardSkipRound:
+        // Skip to next question
+        widget.onSkipQuestion();
+        break;
+
+      default:
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
       child: Container(
         decoration: BoxDecoration(
@@ -771,8 +843,8 @@ class _HostControlPanelState extends State<HostControlPanel> {
     );
   }
 
-  Widget _buildPointsButton(IconData icon, Color color,
-      Future<void> Function() onPressed) {
+  Widget _buildPointsButton(
+      IconData icon, Color color, Future<void> Function() onPressed) {
     return SizedBox(
       width: 32,
       height: 32,
