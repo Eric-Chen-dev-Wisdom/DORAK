@@ -266,6 +266,8 @@ class FirebaseService {
         'votingInProgress': true,
         'teamAVotes': {},
         'teamBVotes': {},
+        'votingStartedAt': FieldValue.serverTimestamp(), // Track voting start for speed bonus
+        'voteTimestamps': {}, // Clear previous vote timestamps
       });
       print('🟢 Voting started for $roomCode');
     } catch (e) {
@@ -280,6 +282,7 @@ class FirebaseService {
       final voteField = team == 'A' ? 'teamAVotes' : 'teamBVotes';
       await _firestore.collection('rooms').doc(roomCode).update({
         '$voteField.$userId': answerIndex,
+        'voteTimestamps.$userId': FieldValue.serverTimestamp(), // Track vote time for speed bonus
       });
       print('✅ $userId voted for $answerIndex on team $team');
     } catch (e) {
@@ -329,6 +332,19 @@ class FirebaseService {
       print('🏆 Updated points — A: $teamAPoints, B: $teamBPoints');
     } catch (e) {
       print('❌ Error updating team points: $e');
+    }
+  }
+  
+  Future<void> updateStreaks(
+      String roomCode, int teamAStreak, int teamBStreak) async {
+    try {
+      await _firestore.collection('rooms').doc(roomCode).update({
+        'teamAStreak': teamAStreak,
+        'teamBStreak': teamBStreak,
+      });
+      print('🔥 Updated streaks — A: $teamAStreak, B: $teamBStreak');
+    } catch (e) {
+      print('❌ Error updating streaks: $e');
     }
   }
 

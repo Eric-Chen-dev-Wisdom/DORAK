@@ -6,7 +6,8 @@ import '../services/navigation_service.dart';
 import '../services/lobby_service.dart';
 import '../models/user_model.dart';
 import '../models/room_model.dart';
-import 'category_selection_screen.dart'; // ADD THIS IMPORT
+import 'category_selection_screen.dart';
+import 'game_screen.dart';
 
 class LobbyGuestScreen extends StatefulWidget {
   final String? roomCode;
@@ -31,6 +32,8 @@ class _LobbyGuestScreenState extends State<LobbyGuestScreen> {
   String _selectedTeam = 'A';
   StreamSubscription<GameRoom?>? _roomSubscription;
   bool _isLoading = false;
+  bool _navigatedToCategory = false;
+  bool _navigatedToGame = false;
 
   @override
   void initState() {
@@ -55,15 +58,48 @@ class _LobbyGuestScreenState extends State<LobbyGuestScreen> {
 
     // Subscribe to real-time room updates
     _roomSubscription = _lobbyService.getRoomStream(roomCode).listen((room) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          if (room != null) {
-            _currentRoom = room;
-            print(
-                '🔄 Room updated: ${room.teamA.length}A, ${room.teamB.length}B players');
-          }
-        });
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        if (room != null) {
+          _currentRoom = room;
+          print(
+              '🔄 Room updated: ${room.teamA.length}A, ${room.teamB.length}B players');
+        }
+      });
+
+      // Navigation triggers - same as lobby_screen.dart
+      if (room != null) {
+        // Navigate to category selection when host starts
+        if (!_navigatedToCategory &&
+            room.state == GameState.categorySelection) {
+          _navigatedToCategory = true;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CategorySelectionScreen(
+                room: room,
+                user: widget.user,
+              ),
+            ),
+          );
+        }
+
+        // Navigate directly to game if it's already in progress
+        if (!_navigatedToGame && room.state == GameState.inGame) {
+          _navigatedToGame = true;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => GameScreen(
+                room: room,
+                user: widget.user,
+                isHost: false,
+              ),
+            ),
+          );
+        }
       }
     }, onError: (error) {
       if (mounted) {
@@ -113,7 +149,9 @@ class _LobbyGuestScreenState extends State<LobbyGuestScreen> {
         _showError('Failed to join room. Please check the code.');
       } else {
         print('✅ Join request sent for room: $roomCode');
-        // The stream listener will update the UI when we successfully join
+        // Start listening to the room for updates
+        _roomSubscription?.cancel(); // Cancel any existing subscription
+        _joinExistingRoom(roomCode);
       }
     }).catchError((error) {
       if (mounted) {

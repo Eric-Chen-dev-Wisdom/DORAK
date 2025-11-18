@@ -33,6 +33,12 @@ class GameRoom {
   int questionCount;
   String selectedDifficulty; // 'all', 'easy', 'medium', 'hard'
   List<Map<String, dynamic>> preparedQuestions;
+  
+  // Scoring enhancements (Day 1)
+  int teamAStreak; // Consecutive correct answers for Team A
+  int teamBStreak; // Consecutive correct answers for Team B
+  DateTime? votingStartedAt; // When current voting started (for speed bonus)
+  Map<String, DateTime> voteTimestamps; // userId -> vote timestamp
 
   GameRoom({
     required this.code,
@@ -60,12 +66,17 @@ class GameRoom {
     int? questionCount,
     String? selectedDifficulty,
     List<Map<String, dynamic>>? preparedQuestions,
-    required this.timerUpdatedAt, // Add 'required' modifier
+    required this.timerUpdatedAt,
+    this.teamAStreak = 0,
+    this.teamBStreak = 0,
+    this.votingStartedAt,
+    Map<String, DateTime>? voteTimestamps,
   })  : scores = scores ?? {'teamA': 0, 'teamB': 0},
         usedPowerCards = usedPowerCards ?? [],
         questionCount = questionCount ?? 10,
         selectedDifficulty = selectedDifficulty ?? 'all',
-        preparedQuestions = preparedQuestions ?? [];
+        preparedQuestions = preparedQuestions ?? [],
+        voteTimestamps = voteTimestamps ?? {};
 
   factory GameRoom.createNew({
     required String code,
@@ -115,6 +126,10 @@ class GameRoom {
     String? selectedDifficulty,
     List<Map<String, dynamic>>? preparedQuestions,
     DateTime? timerUpdatedAt,
+    int? teamAStreak,
+    int? teamBStreak,
+    DateTime? votingStartedAt,
+    Map<String, DateTime>? voteTimestamps,
   }) {
     return GameRoom(
       code: code ?? this.code,
@@ -143,6 +158,10 @@ class GameRoom {
       selectedDifficulty: selectedDifficulty ?? this.selectedDifficulty,
       preparedQuestions: preparedQuestions ?? this.preparedQuestions,
       timerUpdatedAt: timerUpdatedAt ?? this.timerUpdatedAt,
+      teamAStreak: teamAStreak ?? this.teamAStreak,
+      teamBStreak: teamBStreak ?? this.teamBStreak,
+      votingStartedAt: votingStartedAt ?? this.votingStartedAt,
+      voteTimestamps: voteTimestamps ?? this.voteTimestamps,
     );
   }
 
@@ -252,6 +271,11 @@ class GameRoom {
       'questionCount': questionCount,
       'selectedDifficulty': selectedDifficulty,
       'preparedQuestions': preparedQuestions,
+      'teamAStreak': teamAStreak,
+      'teamBStreak': teamBStreak,
+      'votingStartedAt': votingStartedAt?.toIso8601String(),
+      'voteTimestamps': voteTimestamps.map((key, value) => 
+        MapEntry(key, value.toIso8601String())),
       // Intentionally omit timerUpdatedAt here so only setTimer() controls it
     };
   }
@@ -327,7 +351,24 @@ class GameRoom {
       // Use server timestamp only; avoid host clock skew
       timerUpdatedAt:
           _parseDateTimeFromDynamic(json['timerUpdatedAt']) ?? DateTime.now(),
+      teamAStreak: (json['teamAStreak'] as num?)?.toInt() ?? 0,
+      teamBStreak: (json['teamBStreak'] as num?)?.toInt() ?? 0,
+      votingStartedAt: _parseDateTimeFromDynamic(json['votingStartedAt']),
+      voteTimestamps: _parseVoteTimestamps(json['voteTimestamps']),
     );
+  }
+  
+  static Map<String, DateTime> _parseVoteTimestamps(dynamic value) {
+    if (value == null) return {};
+    if (value is! Map) return {};
+    final result = <String, DateTime>{};
+    value.forEach((key, val) {
+      if (key is String) {
+        final dt = _parseDateTimeFromDynamic(val);
+        if (dt != null) result[key] = dt;
+      }
+    });
+    return result;
   }
 }
 

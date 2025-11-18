@@ -389,46 +389,196 @@ class _GameScreenState extends State<GameScreen> {
     if (_questions.isEmpty) return;
     final currentQuestion = _questions[_currentQuestionIndex];
     final correctAnswerIndex = (currentQuestion['correctAnswer'] as int?) ?? -1;
+    final difficulty = currentQuestion['difficulty'] as String? ?? 'easy';
 
     final votes = await _firebaseService.getVotes(widget.room.code);
     final teamAVotes = votes['teamAVotes'] as Map<String, dynamic>;
     final teamBVotes = votes['teamBVotes'] as Map<String, dynamic>;
 
+    // Get base points by difficulty
+    int basePoints = _getPointsForDifficulty(difficulty);
+
+    // Count correct answers per team
     int correctA =
         teamAVotes.values.where((v) => v == correctAnswerIndex).length;
     int correctB =
         teamBVotes.values.where((v) => v == correctAnswerIndex).length;
 
+    // Count wrong answers per team
+    int wrongA = teamAVotes.length - correctA;
+    int wrongB = teamBVotes.length - correctB;
+
+    // Calculate base points for correct answers
+    int earnedA = correctA * basePoints;
+    int earnedB = correctB * basePoints;
+
+    // Apply penalties for wrong answers
+    int penaltyA = wrongA * _getPenaltyForDifficulty(difficulty);
+    int penaltyB = wrongB * _getPenaltyForDifficulty(difficulty);
+
+    // Calculate speed bonuses (votes submitted in < 10 seconds)
+    int speedBonusA = await _calculateSpeedBonus('A', teamAVotes.keys.toList());
+    int speedBonusB = await _calculateSpeedBonus('B', teamBVotes.keys.toList());
+
+    // Update streaks
+    int teamAStreak = _currentRoom.teamAStreak;
+    int teamBStreak = _currentRoom.teamBStreak;
+    int streakBonusA = 0;
+    int streakBonusB = 0;
+
+    if (correctA > 0) {
+      teamAStreak++;
+      if (teamAStreak >= 3) {
+        streakBonusA = 200; // Streak bonus
+        teamAStreak = 0; // Reset after bonus
+      }
+    } else {
+      teamAStreak = 0; // Break streak
+    }
+
+    if (correctB > 0) {
+      teamBStreak++;
+      if (teamBStreak >= 3) {
+        streakBonusB = 200; // Streak bonus
+        teamBStreak = 0; // Reset after bonus
+      }
+    } else {
+      teamBStreak = 0; // Break streak
+    }
+
     // Check if double points power card was used
     final hasDoublePoints =
         _currentRoom.usedPowerCards.contains('double_points');
     if (hasDoublePoints) {
-      correctA *= 2;
-      correctB *= 2;
+      earnedA *= 2;
+      earnedB *= 2;
+      speedBonusA *= 2;
+      speedBonusB *= 2;
+      streakBonusA *= 2;
+      streakBonusB *= 2;
     }
 
-    int pointsA = widget.room.teamAPoints + correctA;
-    int pointsB = widget.room.teamBPoints + correctB;
+    // Calculate final points
+    int totalA = earnedA + speedBonusA + streakBonusA - penaltyA;
+    int totalB = earnedB + speedBonusB + streakBonusB - penaltyB;
 
-    await _firebaseService.updateTeamPoints(widget.room.code, pointsA, pointsB);
+    int newPointsA = widget.room.teamAPoints + totalA;
+    int newPointsB = widget.room.teamBPoints + totalB;
+
+    // Ensure points don't go negative
+    if (newPointsA < 0) newPointsA = 0;
+    if (newPointsB < 0) newPointsB = 0;
+
+    await _firebaseService.updateTeamPoints(
+        widget.room.code, newPointsA, newPointsB);
+    await _firebaseService.updateStreaks(
+        widget.room.code, teamAStreak, teamBStreak);
     await _firebaseService.endVoting(widget.room.code);
 
     setState(() {
       _isTimerRunning = false;
-      widget.room.updatePoints(pointsA, pointsB);
+      widget.room.updatePoints(newPointsA, newPointsB);
       widget.room.votingInProgress = false;
+      _currentRoom = _currentRoom.copyWith(
+        teamAStreak: teamAStreak,
+        teamBStreak: teamBStreak,
+      );
     });
 
-    final l10n = AppLocalizations.of(context)!;
+    // Show detailed breakdown
+    _showScoringBreakdown(
+      earnedA,
+      earnedB,
+      speedBonusA,
+      speedBonusB,
+      streakBonusA,
+      streakBonusB,
+      penaltyA,
+      penaltyB,
+      totalA,
+      totalB,
+      hasDoublePoints,
+      difficulty,
+    );
+  }
+
+  int _getPointsForDifficulty(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'easy':
+        return 100;
+      case 'medium':
+        return 250;
+      case 'hard':
+        return 400;
+      default:
+        return 100;
+    }
+  }
+
+  int _getPenaltyForDifficulty(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'easy':
+        return 100;
+      case 'medium':
+        return 150;
+      case 'hard':
+        return 200;
+      default:
+        return 100;
+    }
+  }
+
+  Future<int> _calculateSpeedBonus(String team, List<String> voterIds) async {
+    int speedBonusCount = 0;
+    final votingStartedAt = _currentRoom.votingStartedAt;
+
+    if (votingStartedAt == null) return 0;
+
+    for (final userId in voterIds) {
+      final voteTime = _currentRoom.voteTimestamps[userId];
+      if (voteTime != null) {
+        final duration = voteTime.difference(votingStartedAt).inSeconds;
+        if (duration < 10) {
+          speedBonusCount++;
+        }
+      }
+    }
+
+    return speedBonusCount * 150; // 150 pts per fast vote
+  }
+
+  void _showScoringBreakdown(
+    int earnedA,
+    int earnedB,
+    int speedA,
+    int speedB,
+    int streakA,
+    int streakB,
+    int penaltyA,
+    int penaltyB,
+    int totalA,
+    int totalB,
+    bool doublePoints,
+    String difficulty,
+  ) {
+    String message = '📊 Scoring:\n';
+    message += 'Team A: ${earnedA > 0 ? "+$earnedA" : "0"}';
+    if (speedA > 0) message += ' +$speedA⚡';
+    if (streakA > 0) message += ' +$streakA🔥';
+    if (penaltyA > 0) message += ' -$penaltyA❌';
+    message += ' = ${totalA > 0 ? "+$totalA" : "$totalA"}\n';
+    message += 'Team B: ${earnedB > 0 ? "+$earnedB" : "0"}';
+    if (speedB > 0) message += ' +$speedB⚡';
+    if (streakB > 0) message += ' +$streakB🔥';
+    if (penaltyB > 0) message += ' -$penaltyB❌';
+    message += ' = ${totalB > 0 ? "+$totalB" : "$totalB"}';
+    if (doublePoints) message += '\n💎 DOUBLE POINTS ACTIVE!';
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          hasDoublePoints
-              ? '${l10n.answerRevealed(correctA, correctB)} (${l10n.doublePoints} activated!)'
-              : l10n.answerRevealed(correctA, correctB),
-        ),
-        backgroundColor: hasDoublePoints ? Colors.purple : Colors.blue,
-        duration: const Duration(seconds: 3),
+        content: Text(message),
+        backgroundColor: doublePoints ? Colors.purple : Colors.blue,
+        duration: const Duration(seconds: 5),
       ),
     );
   }
@@ -583,6 +733,20 @@ class _GameScreenState extends State<GameScreen> {
                         fontSize: 20, fontWeight: FontWeight.bold)),
                 Text(loc.playersCount(widget.room.teamA.length),
                     style: const TextStyle(fontSize: 16)),
+                if (_currentRoom.teamAStreak > 0)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '🔥 ${_currentRoom.teamAStreak} streak',
+                      style: const TextStyle(fontSize: 10, color: Colors.white),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -620,6 +784,20 @@ class _GameScreenState extends State<GameScreen> {
                         fontSize: 20, fontWeight: FontWeight.bold)),
                 Text(loc.playersCount(widget.room.teamB.length),
                     style: const TextStyle(fontSize: 16)),
+                if (_currentRoom.teamBStreak > 0)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '🔥 ${_currentRoom.teamBStreak} streak',
+                      style: const TextStyle(fontSize: 10, color: Colors.white),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -631,25 +809,71 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildQuestionCard(
       BuildContext context, Map<String, dynamic> question) {
     final loc = AppLocalizations.of(context)!;
+    final difficulty =
+        (question['difficulty'] as String? ?? 'easy').toLowerCase();
+    final points = _getPointsForDifficulty(difficulty);
+    final difficultyColor = difficulty == 'hard'
+        ? Colors.red
+        : (difficulty == 'medium' ? Colors.orange : Colors.green);
+
     return Card(
       elevation: 4,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFCE1126).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                question['category'] ?? loc.generalKnowledge,
-                style: const TextStyle(
-                    color: Color(0xFFCE1126),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10),
-              ),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCE1126).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    question['category'] ?? loc.generalKnowledge,
+                    style: const TextStyle(
+                        color: Color(0xFFCE1126),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: difficultyColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        difficulty == 'hard'
+                            ? Icons.star
+                            : (difficulty == 'medium'
+                                ? Icons.star_half
+                                : Icons.star_outline),
+                        size: 12,
+                        color: difficultyColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$points pts',
+                        style: TextStyle(
+                            color: difficultyColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             Text(
