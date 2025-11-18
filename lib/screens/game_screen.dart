@@ -462,8 +462,19 @@ class _GameScreenState extends State<GameScreen> {
     int totalA = earnedA + speedBonusA + streakBonusA - penaltyA;
     int totalB = earnedB + speedBonusB + streakBonusB - penaltyB;
 
-    int newPointsA = widget.room.teamAPoints + totalA;
-    int newPointsB = widget.room.teamBPoints + totalB;
+    // Use _currentRoom for latest synced points (not widget.room)
+    int currentA = _currentRoom.teamAPoints;
+    int currentB = _currentRoom.teamBPoints;
+    int newPointsA = currentA + totalA;
+    int newPointsB = currentB + totalB;
+
+    // Debug scoring
+    print('💰 Scoring: Current A=$currentA B=$currentB');
+    print(
+        '💰 Adding: A=$totalA (earn:$earnedA speed:$speedBonusA streak:$streakBonusA penalty:-$penaltyA)');
+    print(
+        '💰 Adding: B=$totalB (earn:$earnedB speed:$speedBonusB streak:$streakBonusB penalty:-$penaltyB)');
+    print('💰 New totals: A=$newPointsA B=$newPointsB');
 
     // Ensure points don't go negative
     if (newPointsA < 0) newPointsA = 0;
@@ -477,12 +488,14 @@ class _GameScreenState extends State<GameScreen> {
 
     setState(() {
       _isTimerRunning = false;
-      widget.room.updatePoints(newPointsA, newPointsB);
-      widget.room.votingInProgress = false;
       _currentRoom = _currentRoom.copyWith(
+        scores: {'teamA': newPointsA, 'teamB': newPointsB},
         teamAStreak: teamAStreak,
         teamBStreak: teamBStreak,
+        votingInProgress: false,
       );
+      _displayPointsA = newPointsA;
+      _displayPointsB = newPointsB;
     });
 
     // Show detailed breakdown

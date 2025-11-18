@@ -22,18 +22,31 @@ class ResultScreen extends StatelessWidget {
         int b = room.teamBPoints;
         List<dynamic> teamA = room.teamA;
         List<dynamic> teamB = room.teamB;
+        
+        // Always get latest scores from Firebase stream
         if (snap.hasData && snap.data!.data() != null) {
           final data = snap.data!.data()!;
+          
+          // Debug: print raw scores
+          print('🏆 Result Screen - Raw Firebase data: ${data['scores']}');
+          
           final scores = data['scores'] as Map<String, dynamic>?;
           if (scores != null) {
             a = (scores['teamA'] as num?)?.toInt() ?? a;
             b = (scores['teamB'] as num?)?.toInt() ?? b;
+            print('🏆 Result Screen - Parsed scores: A=$a, B=$b');
           }
           try {
             final parsed = GameRoom.fromJson(data);
             teamA = parsed.teamA;
             teamB = parsed.teamB;
-          } catch (_) {}
+            // Also update scores from parsed room to ensure we have latest
+            a = parsed.teamAPoints;
+            b = parsed.teamBPoints;
+            print('🏆 Result Screen - From parsed room: A=$a, B=$b');
+          } catch (e) {
+            print('❌ Error parsing room in results: $e');
+          }
         }
 
         final teamAWon = a > b;
@@ -228,42 +241,4 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTeamList(BuildContext context, String teamName,
-      List<dynamic> members, int colorHex) {
-    final loc = AppLocalizations.of(context)!;
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              teamName,
-              style: TextStyle(
-                color: Color(colorHex),
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const Divider(),
-            for (var user in members)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    const Icon(Icons.person, size: 18, color: Colors.grey),
-                    const SizedBox(width: 6),
-                    Text(
-                      user.displayName ?? loc.unknownPlayer,
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
 }
