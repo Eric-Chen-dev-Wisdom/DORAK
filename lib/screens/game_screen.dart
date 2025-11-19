@@ -69,13 +69,29 @@ class _GameScreenState extends State<GameScreen> {
     final selectedCategories = widget.room.selectedCategories;
     final String lang = Localizations.localeOf(context).languageCode;
     final List<Map<String, dynamic>> loadedQuestions = [];
+
+    // Get list of already used question IDs to prevent repetition
+    final usedIds = Set<String>.from(_currentRoom.usedQuestionIds);
+
     for (final category in selectedCategories) {
       final snap = await FirebaseFirestore.instance
           .collection('categories')
           .doc(category.id)
           .collection('challenges')
           .get();
+
+      // Group questions by difficulty
+      final easyQuestions = <Map<String, dynamic>>[];
+      final mediumQuestions = <Map<String, dynamic>>[];
+      final hardQuestions = <Map<String, dynamic>>[];
+
       for (final doc in snap.docs) {
+        // Skip if question was already used in this room
+        if (usedIds.contains(doc.id)) {
+          print('⏭️ Skipping used question: ${doc.id}');
+          continue;
+        }
+
         final data = doc.data();
         final options = (data['options_${lang}'] as List?)?.cast<String>() ??
             (data['options'] as List?)?.cast<String>() ??
@@ -87,7 +103,11 @@ class _GameScreenState extends State<GameScreen> {
         } else if (correct is String && options.isNotEmpty) {
           correctIndex = options.indexOf(correct);
         }
-        loadedQuestions.add({
+
+        final difficulty =
+            (data['difficulty'] as String?)?.toLowerCase() ?? 'easy';
+
+        final questionData = {
           'id': doc.id,
           'category': category.name,
           'categoryId': category.id,
@@ -96,14 +116,46 @@ class _GameScreenState extends State<GameScreen> {
               '',
           'options': options,
           'correctAnswer': correctIndex,
-        });
+          'difficulty': difficulty,
+        };
+
+        // Sort into difficulty buckets
+        switch (difficulty) {
+          case 'easy':
+            easyQuestions.add(questionData);
+            break;
+          case 'medium':
+            mediumQuestions.add(questionData);
+            break;
+          case 'hard':
+            hardQuestions.add(questionData);
+            break;
+          default:
+            easyQuestions.add(questionData);
+        }
       }
+
+      // Shuffle within each difficulty level for variety
+      easyQuestions.shuffle();
+      mediumQuestions.shuffle();
+      hardQuestions.shuffle();
+
+      // Add questions in order: Easy → Medium → Hard (2E, 2M, 2H per category)
+      loadedQuestions.addAll(easyQuestions.take(2));
+      loadedQuestions.addAll(mediumQuestions.take(2));
+      loadedQuestions.addAll(hardQuestions.take(2));
+
+      print(
+          '📚 Category "${category.name}": ${easyQuestions.take(2).length}E + ${mediumQuestions.take(2).length}M + ${hardQuestions.take(2).length}H');
     }
-    loadedQuestions.shuffle();
+
     setState(() {
       _questions = loadedQuestions;
       _loadingQuestions = false;
     });
+
+    print(
+        '✅ Loaded ${_questions.length} questions (${usedIds.length} excluded as already used)');
   }
 
   @override
@@ -144,12 +196,19 @@ class _GameScreenState extends State<GameScreen> {
           _currentRoom = room;
           _currentQuestionIndex =
               idx.clamp(0, _questions.isEmpty ? 0 : _questions.length - 1);
+
+          // Always sync display points from Firebase (authoritative source)
           final scores = data['scores'] as Map<String, dynamic>?;
           if (scores != null) {
-            _displayPointsA =
-                (scores['teamA'] as num?)?.toInt() ?? _displayPointsA;
-            _displayPointsB =
-                (scores['teamB'] as num?)?.toInt() ?? _displayPointsB;
+            final newA = (scores['teamA'] as num?)?.toInt() ?? _displayPointsA;
+            final newB = (scores['teamB'] as num?)?.toInt() ?? _displayPointsB;
+
+            // Only update if scores actually changed (prevent flicker)
+            if (newA != _displayPointsA || newB != _displayPointsB) {
+              _displayPointsA = newA;
+              _displayPointsB = newB;
+              print('📊 Scores synced from Firebase: A=$newA, B=$newB');
+            }
           }
 
           if (data['timerUpdatedAt'] == null) {
@@ -344,14 +403,57 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  void _handleEndGame() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            ResultScreen(room: widget.room, user: widget.user),
-      ),
-    );
+  void _handleEndGame() async {
+    // Calculate game duration
+    final duration =
+        DateTime.now().difference(_currentRoom.createdAt).inSeconds;
+
+    // Determine winner
+    String winner = 'tie';
+    if (_currentRoom.teamAPoints > _currentRoom.teamBPoints) {
+      winner = 'A';
+    } else if (_currentRoom.teamBPoints > _currentRoom.teamAPoints) {
+      winner = 'B';
+    }
+
+    // Save match history
+    try {
+      await _firebaseService.saveMatchHistory({
+        'roomCode': widget.room.code,
+        'teamAScore': _currentRoom.teamAPoints,
+        'teamBScore': _currentRoom.teamBPoints,
+        'winner': winner,
+        'teamAPlayerNames':
+            _currentRoom.teamA.map((u) => u.displayName).toList(),
+        'teamBPlayerNames':
+            _currentRoom.teamB.map((u) => u.displayName).toList(),
+        'categories':
+            _currentRoom.selectedCategories.map((c) => c.name).toList(),
+        'totalQuestions': _questions.length,
+        'duration': duration,
+        'bonusStats': {
+          'teamAStreak': _currentRoom.teamAStreak,
+          'teamBStreak': _currentRoom.teamBStreak,
+          'powerCardsUsed': _currentRoom.usedPowerCards.length,
+        },
+      });
+      print('✅ Match history saved successfully');
+    } catch (e) {
+      print('❌ Failed to save match history: $e');
+    }
+
+    // End game in Firebase
+    await _firebaseService.endGame(widget.room.code);
+
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              ResultScreen(room: _currentRoom, user: widget.user),
+        ),
+      );
+    }
   }
 
   void _handleStartVoting() async {
@@ -387,16 +489,35 @@ class _GameScreenState extends State<GameScreen> {
 
   void _handleRevealAnswer() async {
     if (_questions.isEmpty) return;
+
+    print('🎯 === REVEAL ANSWER START ===');
+    print(
+        '🎯 Current room scores before calculation: A=${_currentRoom.teamAPoints}, B=${_currentRoom.teamBPoints}');
+    print('🎯 Display scores: A=$_displayPointsA, B=$_displayPointsB');
+
     final currentQuestion = _questions[_currentQuestionIndex];
     final correctAnswerIndex = (currentQuestion['correctAnswer'] as int?) ?? -1;
     final difficulty = currentQuestion['difficulty'] as String? ?? 'easy';
+
+    // Mark question as used to prevent repetition
+    final questionId = currentQuestion['id'] as String?;
+    if (questionId != null &&
+        !_currentRoom.usedQuestionIds.contains(questionId)) {
+      await _firebaseService.markQuestionAsUsed(widget.room.code, questionId);
+      print('✅ Marked question as used: $questionId');
+    }
+
+    // Check if this is a jackpot question
+    final isJackpot = _currentRoom.isJackpotQuestion;
+    final jackpotValue = _currentRoom.jackpotPoints ?? 0;
 
     final votes = await _firebaseService.getVotes(widget.room.code);
     final teamAVotes = votes['teamAVotes'] as Map<String, dynamic>;
     final teamBVotes = votes['teamBVotes'] as Map<String, dynamic>;
 
-    // Get base points by difficulty
-    int basePoints = _getPointsForDifficulty(difficulty);
+    // Get base points by difficulty (or jackpot if enabled)
+    int basePoints =
+        isJackpot ? jackpotValue : _getPointsForDifficulty(difficulty);
 
     // Count correct answers per team
     int correctA =
@@ -412,9 +533,11 @@ class _GameScreenState extends State<GameScreen> {
     int earnedA = correctA * basePoints;
     int earnedB = correctB * basePoints;
 
-    // Apply penalties for wrong answers
-    int penaltyA = wrongA * _getPenaltyForDifficulty(difficulty);
-    int penaltyB = wrongB * _getPenaltyForDifficulty(difficulty);
+    // Apply penalties for wrong answers (jackpot penalties are same as base points)
+    int penaltyA = wrongA *
+        (isJackpot ? jackpotValue : _getPenaltyForDifficulty(difficulty));
+    int penaltyB = wrongB *
+        (isJackpot ? jackpotValue : _getPenaltyForDifficulty(difficulty));
 
     // Calculate speed bonuses (votes submitted in < 10 seconds)
     int speedBonusA = await _calculateSpeedBonus('A', teamAVotes.keys.toList());
@@ -480,23 +603,32 @@ class _GameScreenState extends State<GameScreen> {
     if (newPointsA < 0) newPointsA = 0;
     if (newPointsB < 0) newPointsB = 0;
 
-    await _firebaseService.updateTeamPoints(
-        widget.room.code, newPointsA, newPointsB);
-    await _firebaseService.updateStreaks(
-        widget.room.code, teamAStreak, teamBStreak);
-    await _firebaseService.endVoting(widget.room.code);
-
+    // First update local state immediately for instant feedback
     setState(() {
       _isTimerRunning = false;
+      _displayPointsA = newPointsA;
+      _displayPointsB = newPointsB;
       _currentRoom = _currentRoom.copyWith(
         scores: {'teamA': newPointsA, 'teamB': newPointsB},
         teamAStreak: teamAStreak,
         teamBStreak: teamBStreak,
         votingInProgress: false,
       );
-      _displayPointsA = newPointsA;
-      _displayPointsB = newPointsB;
     });
+
+    // Then update Firebase (scores will sync back and confirm)
+    await _firebaseService.updateTeamPoints(
+        widget.room.code, newPointsA, newPointsB);
+    await _firebaseService.updateStreaks(
+        widget.room.code, teamAStreak, teamBStreak);
+
+    // Wait a moment for scores to propagate
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    // Then end voting (this clears votes for next round)
+    await _firebaseService.endVoting(widget.room.code);
+
+    print('✅ Final scores updated: A=$newPointsA, B=$newPointsB');
 
     // Show detailed breakdown
     _showScoringBreakdown(
@@ -511,6 +643,7 @@ class _GameScreenState extends State<GameScreen> {
       totalA,
       totalB,
       hasDoublePoints,
+      isJackpot,
       difficulty,
     );
   }
@@ -572,9 +705,12 @@ class _GameScreenState extends State<GameScreen> {
     int totalA,
     int totalB,
     bool doublePoints,
+    bool isJackpot,
     String difficulty,
   ) {
-    String message = '📊 Scoring:\n';
+    String message = '';
+    if (isJackpot) message += '🎁 JACKPOT RESULT!\n';
+    message += '📊 Scoring:\n';
     message += 'Team A: ${earnedA > 0 ? "+$earnedA" : "0"}';
     if (speedA > 0) message += ' +$speedA⚡';
     if (streakA > 0) message += ' +$streakA🔥';
@@ -587,10 +723,13 @@ class _GameScreenState extends State<GameScreen> {
     message += ' = ${totalB > 0 ? "+$totalB" : "$totalB"}';
     if (doublePoints) message += '\n💎 DOUBLE POINTS ACTIVE!';
 
+    Color bgColor =
+        isJackpot ? Colors.amber : (doublePoints ? Colors.purple : Colors.blue);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: doublePoints ? Colors.purple : Colors.blue,
+        backgroundColor: bgColor,
         duration: const Duration(seconds: 5),
       ),
     );
@@ -824,88 +963,217 @@ class _GameScreenState extends State<GameScreen> {
     final loc = AppLocalizations.of(context)!;
     final difficulty =
         (question['difficulty'] as String? ?? 'easy').toLowerCase();
-    final points = _getPointsForDifficulty(difficulty);
-    final difficultyColor = difficulty == 'hard'
-        ? Colors.red
-        : (difficulty == 'medium' ? Colors.orange : Colors.green);
+    final isJackpot = _currentRoom.isJackpotQuestion;
+    final points = isJackpot
+        ? (_currentRoom.jackpotPoints ?? 0)
+        : _getPointsForDifficulty(difficulty);
+    final difficultyColor = isJackpot
+        ? Colors.amber
+        : (difficulty == 'hard'
+            ? Colors.red
+            : (difficulty == 'medium' ? Colors.orange : Colors.green));
 
     return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
+      elevation: isJackpot ? 8 : 4,
+      shadowColor: isJackpot ? Colors.amber : null,
+      child: Container(
+        decoration: isJackpot
+            ? BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber, width: 3),
+              )
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              if (isJackpot)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFCE1126).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    question['category'] ?? loc.generalKnowledge,
-                    style: const TextStyle(
-                        color: Color(0xFFCE1126),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 10),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: difficultyColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      colors: [Colors.amber.shade700, Colors.amber.shade400],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        difficulty == 'hard'
-                            ? Icons.star
-                            : (difficulty == 'medium'
-                                ? Icons.star_half
-                                : Icons.star_outline),
-                        size: 12,
-                        color: difficultyColor,
-                      ),
-                      const SizedBox(width: 4),
+                      const Icon(Icons.star, color: Colors.white, size: 24),
+                      const SizedBox(width: 8),
                       Text(
-                        '$points pts',
-                        style: TextStyle(
-                            color: difficultyColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10),
+                        '🎁 JACKPOT QUESTION! $points PTS!',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
+                      const Icon(Icons.star, color: Colors.white, size: 24),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              question['question'] ?? '',
-              style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold, height: 1.3),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              loc.questionNumber(
-                (_currentQuestionIndex + 1),
-                (_questions.length),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCE1126).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      question['category'] ?? loc.generalKnowledge,
+                      style: const TextStyle(
+                          color: Color(0xFFCE1126),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (!isJackpot)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: difficultyColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            difficulty == 'hard'
+                                ? Icons.star
+                                : (difficulty == 'medium'
+                                    ? Icons.star_half
+                                    : Icons.star_outline),
+                            size: 12,
+                            color: difficultyColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$points pts',
+                            style: TextStyle(
+                                color: difficultyColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text(
+                question['question'] ?? '',
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold, height: 1.3),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              _buildCategoryProgress(question),
+              const SizedBox(height: 8),
+              Text(
+                loc.questionNumber(
+                  (_currentQuestionIndex + 1),
+                  (_questions.length),
+                ),
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCategoryProgress(Map<String, dynamic> question) {
+    final currentCategory = question['categoryId'] as String?;
+    if (currentCategory == null) return const SizedBox.shrink();
+
+    // Count questions from same category up to current index
+    int categoryQuestionsAnswered = 0;
+    int totalInCategory = 0;
+    int easyCount = 0;
+    int mediumCount = 0;
+    int hardCount = 0;
+
+    for (int i = 0; i < _questions.length; i++) {
+      if (_questions[i]['categoryId'] == currentCategory) {
+        totalInCategory++;
+        final diff =
+            (_questions[i]['difficulty'] as String? ?? 'easy').toLowerCase();
+        if (diff == 'easy') easyCount++;
+        if (diff == 'medium') mediumCount++;
+        if (diff == 'hard') hardCount++;
+
+        if (i < _currentQuestionIndex) {
+          categoryQuestionsAnswered++;
+        }
+      }
+    }
+
+    final currentInCategory =
+        categoryQuestionsAnswered + 1; // +1 for current question
+
+    if (totalInCategory <= 1)
+      return const SizedBox.shrink(); // Don't show if only 1 question
+
+    final progress = currentInCategory / totalInCategory;
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.category, size: 14, color: Colors.grey),
+            const SizedBox(width: 6),
+            Text(
+              'Category: $currentInCategory of $totalInCategory',
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Difficulty indicators
+            if (easyCount > 0) ...[
+              Icon(Icons.circle, size: 8, color: Colors.green),
+              Text(' $easyCount',
+                  style: TextStyle(fontSize: 10, color: Colors.grey)),
+            ],
+            if (mediumCount > 0) ...[
+              SizedBox(width: 4),
+              Icon(Icons.circle, size: 8, color: Colors.orange),
+              Text(' $mediumCount',
+                  style: TextStyle(fontSize: 10, color: Colors.grey)),
+            ],
+            if (hardCount > 0) ...[
+              SizedBox(width: 4),
+              Icon(Icons.circle, size: 8, color: Colors.red),
+              Text(' $hardCount',
+                  style: TextStyle(fontSize: 10, color: Colors.grey)),
+            ],
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey[200],
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFCE1126)),
+            minHeight: 6,
+          ),
+        ),
+      ],
     );
   }
 

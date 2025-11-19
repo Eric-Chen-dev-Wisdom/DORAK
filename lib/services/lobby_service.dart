@@ -152,6 +152,11 @@ class LobbyService {
       final Map<String, dynamic> _arbEn =
           lang == 'en' ? _arb : await _loadArb('en');
       final List<Map<String, dynamic>> pool = [];
+      
+      // Get list of already used question IDs for this room
+      final usedIds = Set<String>.from(room.usedQuestionIds);
+      print('🔍 Filtering questions - ${usedIds.length} already used in this room');
+      
       for (final cat in categories) {
         final snap = await FirebaseFirestore.instance
             .collection('categories')
@@ -159,6 +164,12 @@ class LobbyService {
             .collection('challenges')
             .get();
         for (final doc in snap.docs) {
+          // Skip if question was already used in this room
+          if (usedIds.contains(doc.id)) {
+            print('⏭️ Skipping used question: ${doc.id}');
+            continue;
+          }
+          
           final data = doc.data();
           final diffStr = (data['difficulty'] as String?) ?? '';
           final matches = difficulty == 'all' ||
@@ -259,6 +270,11 @@ class LobbyService {
         for (final cat in categories) {
           final list = defs[cat.id] ?? const <Challenge>[];
           for (final q in list) {
+            // Skip if question was already used in this room
+            if (usedIds.contains(q.id)) {
+              continue;
+            }
+            
             // Filter by requested difficulty
             if (difficulty != 'all' &&
                 q.difficulty.name.toLowerCase() != difficulty.toLowerCase()) {

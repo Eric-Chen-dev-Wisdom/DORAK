@@ -31,7 +31,6 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
   StreamSubscription<GameRoom?>? _roomSub;
   bool _navigatedToGame = false;
   // Will be populated from Firestore (localized). Fallback to defaults if empty
-  List<Category> _availableCategories = [];
   final QuestionService _questionService = QuestionService();
 
   final List<Category> _selectedCategories = [];
@@ -236,7 +235,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                 final cats = (snap.data ?? []);
                 // Fallback to bundled defaults if Firestore empty
                 final effective = cats.isNotEmpty ? cats : defaultCategories();
-                _availableCategories = effective;
+                // Categories loaded
                 _catalogById = {for (final c in effective) c.id: c};
                 return GridView.builder(
                   padding: const EdgeInsets.all(16),
@@ -385,15 +384,15 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                 )
               : null,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             child: Column(
-              // Don't use MainAxisAlignment.center, let content expand naturally then clip/ellipsis
               mainAxisAlignment: MainAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 // Image display for category
                 SizedBox(
-                  height: 100,
-                  width: 90,
+                  height: 90,
+                  width: 85,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.asset(
@@ -406,29 +405,31 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   _nameFor(category),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
+                    fontSize: 13,
                     color: AppConstants.primaryBlack,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _descFor(category),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey,
+                const SizedBox(height: 3),
+                Flexible(
+                  child: Text(
+                    _descFor(category),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Colors.grey,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                // If you want an informational icon at the top-right in future, can add as Stack
               ],
             ),
           ),

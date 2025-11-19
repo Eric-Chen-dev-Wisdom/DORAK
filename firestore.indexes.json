@@ -46,6 +46,17 @@
   //     ]
   //   },
   // ]
-  "indexes": [],
-  "fieldOverrides": []
-}
+
+    "indexes": [
+      {
+        "collectionGroup": "matchHistory",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "roomCode", "order": "ASCENDING" },
+          { "fieldPath": "completedAt", "order": "DESCENDING" },
+          { "fieldPath": "__name__", "order": "DESCENDING" }
+        ]
+      }
+    ],
+    "fieldOverrides": []
+  }

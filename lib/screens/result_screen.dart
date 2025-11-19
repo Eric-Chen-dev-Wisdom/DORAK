@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../utils/constants.dart';
 import '../services/firebase_service.dart';
 import 'package:DORAK/l10n/app_localizations.dart';
+import 'match_history_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final GameRoom room;
@@ -118,36 +119,37 @@ class ResultScreen extends StatelessWidget {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: FractionallySizedBox(
-                  heightFactor: 0.55,
+                  heightFactor: 0.6,
                   alignment: Alignment.bottomCenter,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24.0, vertical: 20.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.max,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        const SizedBox(height: 12),
-                        Text(
-                          isTie
-                              ? loc.itsATie
-                              : teamAWon
-                                  ? loc.teamAWins
-                                  : loc.teamBWins,
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFCE1126),
-                            shadows: [
-                              Shadow(
-                                color: Colors.white,
-                                blurRadius: 2,
-                                offset: Offset(0.8, 0.8),
-                              ),
-                            ],
+                        horizontal: 24.0, vertical: 16.0),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          const SizedBox(height: 8),
+                          Text(
+                            isTie
+                                ? loc.itsATie
+                                : teamAWon
+                                    ? loc.teamAWins
+                                    : loc.teamBWins,
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFCE1126),
+                              shadows: [
+                                Shadow(
+                                  color: Colors.white,
+                                  blurRadius: 2,
+                                  offset: Offset(0.8, 0.8),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 30),
+                          const SizedBox(height: 20),
                         Card(
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16)),
@@ -171,37 +173,81 @@ class ResultScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.popUntil(
-                                    context, (route) => route.isFirst);
-                              },
-                              icon: const Icon(Icons.home),
-                              label: Text(loc.backToHome),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFCE1126),
-                                foregroundColor: Colors.white,
-                              ),
+                          const SizedBox(height: 16),
+                          Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: [
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.popUntil(
+                                            context, (route) => route.isFirst);
+                                      },
+                                      icon: const Icon(Icons.home, size: 20),
+                                      label: Text(loc.backToHome),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFFCE1126),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        // Navigate to lobby for all players (host and non-host)
+                                        Navigator.popUntil(context, (route) => route.isFirst);
+                                        Navigator.pushNamed(
+                                          context,
+                                          '/lobby',
+                                          arguments: user,
+                                        );
+                                      },
+                                      icon: const Icon(Icons.refresh, size: 20),
+                                      label: Text(loc.tryAgain),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF007A3D),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 10),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.pop(context);
-                              },
-                              icon: const Icon(Icons.refresh),
-                              label: Text(loc.tryAgain),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF007A3D),
-                                foregroundColor: Colors.white,
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          MatchHistoryScreen(roomCode: room.code),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.history, size: 20),
+                                label: const Text('View Match History'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFCE1126),
+                                  side: const BorderSide(color: Color(0xFFCE1126)),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                ),
                               ),
                             ),
                           ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

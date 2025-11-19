@@ -21,6 +21,7 @@ dependencies:
   provider: ^6.1.1
   share_plus: ^7.0.1
   audioplayers: ^5.2.1
+  sensors_plus: ^5.0.1
   flutter_localizations:
     sdk: flutter
   intl: ^0.20.0
@@ -43,6 +44,7 @@ flutter:
   generate: true
   assets:
     - assets/images/
+    - assets/audio/
     - lib/l10n/app_en.arb
     - lib/l10n/app_ar.arb
 

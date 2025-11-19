@@ -90,7 +90,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
               user: widget.user,
             ),
           ),
-        );
+        ).then((_) {
+          // Reset flag when returning from category screen
+          setState(() {
+            _navigatedToCategory = false;
+          });
+        });
       }
     }, onError: (error) {
       if (!mounted) return;
@@ -129,7 +134,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   user: widget.user,
                 ),
               ),
-            );
+            ).then((_) {
+              // Reset flag when returning from category screen
+              if (mounted) {
+                setState(() {
+                  _navigatedToCategory = false;
+                });
+              }
+            });
           }
         }
       });

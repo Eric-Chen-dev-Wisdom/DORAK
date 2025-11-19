@@ -33,12 +33,20 @@ class GameRoom {
   int questionCount;
   String selectedDifficulty; // 'all', 'easy', 'medium', 'hard'
   List<Map<String, dynamic>> preparedQuestions;
-  
-  // Scoring enhancements (Day 1)
+
+  // Scoring enhancements
   int teamAStreak; // Consecutive correct answers for Team A
   int teamBStreak; // Consecutive correct answers for Team B
   DateTime? votingStartedAt; // When current voting started (for speed bonus)
   Map<String, DateTime> voteTimestamps; // userId -> vote timestamp
+
+  // Jackpot system
+  bool isJackpotQuestion; // Is current question a jackpot?
+  int? jackpotPoints; // Random jackpot value (200-600)
+  bool jackpotAccepted; // Did teams accept the jackpot risk?
+
+  // Question anti-repetition system
+  List<String> usedQuestionIds; // Track used question IDs to prevent repeats
 
   GameRoom({
     required this.code,
@@ -71,12 +79,17 @@ class GameRoom {
     this.teamBStreak = 0,
     this.votingStartedAt,
     Map<String, DateTime>? voteTimestamps,
+    this.isJackpotQuestion = false,
+    this.jackpotPoints,
+    this.jackpotAccepted = false,
+    List<String>? usedQuestionIds,
   })  : scores = scores ?? {'teamA': 0, 'teamB': 0},
         usedPowerCards = usedPowerCards ?? [],
         questionCount = questionCount ?? 10,
         selectedDifficulty = selectedDifficulty ?? 'all',
         preparedQuestions = preparedQuestions ?? [],
-        voteTimestamps = voteTimestamps ?? {};
+        voteTimestamps = voteTimestamps ?? {},
+        usedQuestionIds = usedQuestionIds ?? [];
 
   factory GameRoom.createNew({
     required String code,
@@ -130,6 +143,10 @@ class GameRoom {
     int? teamBStreak,
     DateTime? votingStartedAt,
     Map<String, DateTime>? voteTimestamps,
+    bool? isJackpotQuestion,
+    int? jackpotPoints,
+    bool? jackpotAccepted,
+    List<String>? usedQuestionIds,
   }) {
     return GameRoom(
       code: code ?? this.code,
@@ -162,6 +179,10 @@ class GameRoom {
       teamBStreak: teamBStreak ?? this.teamBStreak,
       votingStartedAt: votingStartedAt ?? this.votingStartedAt,
       voteTimestamps: voteTimestamps ?? this.voteTimestamps,
+      isJackpotQuestion: isJackpotQuestion ?? this.isJackpotQuestion,
+      jackpotPoints: jackpotPoints ?? this.jackpotPoints,
+      jackpotAccepted: jackpotAccepted ?? this.jackpotAccepted,
+      usedQuestionIds: usedQuestionIds ?? this.usedQuestionIds,
     );
   }
 
@@ -274,8 +295,12 @@ class GameRoom {
       'teamAStreak': teamAStreak,
       'teamBStreak': teamBStreak,
       'votingStartedAt': votingStartedAt?.toIso8601String(),
-      'voteTimestamps': voteTimestamps.map((key, value) => 
-        MapEntry(key, value.toIso8601String())),
+      'voteTimestamps': voteTimestamps
+          .map((key, value) => MapEntry(key, value.toIso8601String())),
+      'isJackpotQuestion': isJackpotQuestion,
+      'jackpotPoints': jackpotPoints,
+      'jackpotAccepted': jackpotAccepted,
+      'usedQuestionIds': usedQuestionIds,
       // Intentionally omit timerUpdatedAt here so only setTimer() controls it
     };
   }
@@ -355,9 +380,13 @@ class GameRoom {
       teamBStreak: (json['teamBStreak'] as num?)?.toInt() ?? 0,
       votingStartedAt: _parseDateTimeFromDynamic(json['votingStartedAt']),
       voteTimestamps: _parseVoteTimestamps(json['voteTimestamps']),
+      isJackpotQuestion: json['isJackpotQuestion'] ?? false,
+      jackpotPoints: (json['jackpotPoints'] as num?)?.toInt(),
+      jackpotAccepted: json['jackpotAccepted'] ?? false,
+      usedQuestionIds: List<String>.from(json['usedQuestionIds'] ?? []),
     );
   }
-  
+
   static Map<String, DateTime> _parseVoteTimestamps(dynamic value) {
     if (value == null) return {};
     if (value is! Map) return {};

@@ -83,7 +83,14 @@ class _LobbyGuestScreenState extends State<LobbyGuestScreen> {
                 user: widget.user,
               ),
             ),
-          );
+          ).then((_) {
+            // Reset flag when returning from category screen
+            if (mounted) {
+              setState(() {
+                _navigatedToCategory = false;
+              });
+            }
+          });
         }
 
         // Navigate directly to game if it's already in progress

@@ -944,6 +944,39 @@ class _HostControlPanelState extends State<HostControlPanel> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            // Jackpot toggle
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _toggleJackpot,
+                icon: Icon(
+                  _currentRoom.isJackpotQuestion
+                      ? Icons.star
+                      : Icons.star_outline,
+                  color: Colors.amber,
+                ),
+                label: Text(
+                  _currentRoom.isJackpotQuestion
+                      ? '🎁 Jackpot Active! (${_currentRoom.jackpotPoints ?? "?"}pts)'
+                      : '🎁 Enable Jackpot',
+                  style: TextStyle(
+                    fontWeight: _currentRoom.isJackpotQuestion
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.amber[800],
+                  side: BorderSide(
+                    color: _currentRoom.isJackpotQuestion
+                        ? Colors.amber
+                        : Colors.grey,
+                    width: _currentRoom.isJackpotQuestion ? 2 : 1,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1137,6 +1170,150 @@ class _HostControlPanelState extends State<HostControlPanel> {
                 Text(l10n.endGame, style: const TextStyle(color: Colors.red)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _toggleJackpot() async {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_currentRoom.isJackpotQuestion) {
+      // Disable jackpot
+      await _firebaseService.updateRoomField(
+        _currentRoom.code,
+        'isJackpotQuestion',
+        false,
+      );
+      setState(() {
+        _currentRoom = _currentRoom.copyWith(
+          isJackpotQuestion: false,
+          jackpotPoints: null,
+          jackpotAccepted: false,
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🎁 Jackpot disabled'),
+          backgroundColor: Colors.grey,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else {
+      // Enable jackpot with random points
+      final jackpotValue =
+          200 + (DateTime.now().millisecondsSinceEpoch % 401); // Random 200-600
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.star, color: Colors.amber, size: 24),
+              SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  '🎁 Jackpot Question',
+                  style: TextStyle(fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Enable Jackpot for this question?',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Text('✅', style: TextStyle(fontSize: 16)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Correct answer = +$jackpotValue points',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Text('❌', style: TextStyle(fontSize: 16)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Wrong answer = -$jackpotValue points',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Teams must accept the risk!',
+                  style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n.cancel),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _enableJackpot(jackpotValue);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+              ),
+              child: const Text('Enable Jackpot'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _enableJackpot(int points) async {
+    await _firebaseService.updateRoomField(
+      _currentRoom.code,
+      'isJackpotQuestion',
+      true,
+    );
+    await _firebaseService.updateRoomField(
+      _currentRoom.code,
+      'jackpotPoints',
+      points,
+    );
+    await _firebaseService.updateRoomField(
+      _currentRoom.code,
+      'jackpotAccepted',
+      false, // Teams haven't accepted yet
+    );
+
+    setState(() {
+      _currentRoom = _currentRoom.copyWith(
+        isJackpotQuestion: true,
+        jackpotPoints: points,
+        jackpotAccepted: false,
+      );
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('🎁 Jackpot enabled! Worth $points points!'),
+        backgroundColor: Colors.amber,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
