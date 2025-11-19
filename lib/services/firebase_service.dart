@@ -60,13 +60,13 @@ class FirebaseService {
       print('??O Error moving to next question: $e');
     }
   }
-  
+
   // End the game manually and save match history
   Future<void> endGame(String roomCode) async {
     try {
       // Save match history before ending
       await _saveMatchHistoryForRoom(roomCode);
-      
+
       await _firestore.collection('rooms').doc(roomCode).update({
         'state': 'GameState.gameComplete',
         'votingInProgress': false,
@@ -78,32 +78,40 @@ class FirebaseService {
       rethrow;
     }
   }
-  
+
   Future<void> _saveMatchHistoryForRoom(String roomCode) async {
     try {
       final roomDoc = await _firestore.collection('rooms').doc(roomCode).get();
       if (!roomDoc.exists) return;
-      
+
       final data = roomDoc.data()!;
       final scores = data['scores'] as Map<String, dynamic>? ?? {};
       final teamAScore = (scores['teamA'] as num?)?.toInt() ?? 0;
       final teamBScore = (scores['teamB'] as num?)?.toInt() ?? 0;
-      
-      final teamA = (data['teamA'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-      final teamB = (data['teamB'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-      
-      final categories = (data['selectedCategories'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-      final categoryNames = categories.map((c) => c['name'] as String? ?? '').toList();
-      
+
+      final teamA =
+          (data['teamA'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final teamB =
+          (data['teamB'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+
+      final categories =
+          (data['selectedCategories'] as List?)?.cast<Map<String, dynamic>>() ??
+              [];
+      final categoryNames =
+          categories.map((c) => c['name'] as String? ?? '').toList();
+
       final totalQuestions = (data['preparedQuestions'] as List?)?.length ?? 0;
       final createdAtStr = data['createdAt'] as String?;
-      final createdAt = createdAtStr != null ? DateTime.tryParse(createdAtStr) : null;
-      final duration = createdAt != null 
-          ? DateTime.now().difference(createdAt).inSeconds 
+      final createdAt =
+          createdAtStr != null ? DateTime.tryParse(createdAtStr) : null;
+      final duration = createdAt != null
+          ? DateTime.now().difference(createdAt).inSeconds
           : 0;
-      
-      final winner = teamAScore > teamBScore ? 'A' : (teamBScore > teamAScore ? 'B' : 'TIE');
-      
+
+      final winner = teamAScore > teamBScore
+          ? 'A'
+          : (teamBScore > teamAScore ? 'B' : 'TIE');
+
       await saveMatchHistory({
         'roomCode': roomCode,
         'finalScores': {'teamA': teamAScore, 'teamB': teamBScore},
@@ -285,41 +293,41 @@ class FirebaseService {
   // VOTING SYSTEM
   // =========================================================
   Stream<Map<String, dynamic>> getVotesStream(String roomCode) {
-  return _firestore
-      .collection('rooms')
-      .doc(roomCode)
-      .snapshots()
-      .map((snapshot) {
-    final data = snapshot.data() ?? {};
-    
-    // Safely convert teamAVotes
-    final teamAVotes = data['teamAVotes'];
-    final Map<String, dynamic> safeTeamAVotes = {};
-    if (teamAVotes is Map) {
-      teamAVotes.forEach((key, value) {
-        if (key is String) {
-          safeTeamAVotes[key] = value;
-        }
-      });
-    }
-    
-    // Safely convert teamBVotes
-    final teamBVotes = data['teamBVotes'];
-    final Map<String, dynamic> safeTeamBVotes = {};
-    if (teamBVotes is Map) {
-      teamBVotes.forEach((key, value) {
-        if (key is String) {
-          safeTeamBVotes[key] = value;
-        }
-      });
-    }
-    
-    return {
-      'teamAVotes': safeTeamAVotes,
-      'teamBVotes': safeTeamBVotes,
-    };
-  });
-}
+    return _firestore
+        .collection('rooms')
+        .doc(roomCode)
+        .snapshots()
+        .map((snapshot) {
+      final data = snapshot.data() ?? {};
+
+      // Safely convert teamAVotes
+      final teamAVotes = data['teamAVotes'];
+      final Map<String, dynamic> safeTeamAVotes = {};
+      if (teamAVotes is Map) {
+        teamAVotes.forEach((key, value) {
+          if (key is String) {
+            safeTeamAVotes[key] = value;
+          }
+        });
+      }
+
+      // Safely convert teamBVotes
+      final teamBVotes = data['teamBVotes'];
+      final Map<String, dynamic> safeTeamBVotes = {};
+      if (teamBVotes is Map) {
+        teamBVotes.forEach((key, value) {
+          if (key is String) {
+            safeTeamBVotes[key] = value;
+          }
+        });
+      }
+
+      return {
+        'teamAVotes': safeTeamAVotes,
+        'teamBVotes': safeTeamBVotes,
+      };
+    });
+  }
 
   Future<void> startVoting(String roomCode) async {
     try {
@@ -327,7 +335,8 @@ class FirebaseService {
         'votingInProgress': true,
         'teamAVotes': {},
         'teamBVotes': {},
-        'votingStartedAt': FieldValue.serverTimestamp(), // Track voting start for speed bonus
+        'votingStartedAt':
+            FieldValue.serverTimestamp(), // Track voting start for speed bonus
         'voteTimestamps': {}, // Clear previous vote timestamps
       });
       print('🟢 Voting started for $roomCode');
@@ -343,7 +352,8 @@ class FirebaseService {
       final voteField = team == 'A' ? 'teamAVotes' : 'teamBVotes';
       await _firestore.collection('rooms').doc(roomCode).update({
         '$voteField.$userId': answerIndex,
-        'voteTimestamps.$userId': FieldValue.serverTimestamp(), // Track vote time for speed bonus
+        'voteTimestamps.$userId':
+            FieldValue.serverTimestamp(), // Track vote time for speed bonus
       });
       print('✅ $userId voted for $answerIndex on team $team');
     } catch (e) {
@@ -410,7 +420,7 @@ class FirebaseService {
       print('❌ Error updating team points: $e');
     }
   }
-  
+
   Future<void> updateStreaks(
       String roomCode, int teamAStreak, int teamBStreak) async {
     try {
@@ -424,7 +434,7 @@ class FirebaseService {
     }
   }
 
-  Future<void> activatePowerCard(String roomCode, String cardId) async{
+  Future<void> activatePowerCard(String roomCode, String cardId) async {
     try {
       await _firestore.collection('rooms').doc(roomCode).update({
         'usedPowerCards': FieldValue.arrayUnion([cardId]),
@@ -484,15 +494,43 @@ class FirebaseService {
         .snapshots();
   }
 
-  Future<List<Map<String, dynamic>>> getMatchHistoryList(String roomCode) async {
+  Future<List<Map<String, dynamic>>> getMatchHistoryList(
+      String roomCode) async {
     try {
-      final snap = await _firestore
-          .collection('matchHistory')
-          .where('roomCode', isEqualTo: roomCode)
-          .orderBy('completedAt', descending: true)
-          .limit(50)
-          .get();
-      return snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      // Try with orderBy first (requires index)
+      try {
+        final snap = await _firestore
+            .collection('matchHistory')
+            .where('roomCode', isEqualTo: roomCode)
+            .orderBy('completedAt', descending: true)
+            .limit(50)
+            .get();
+        print(
+            '📜 Match history loaded with index: ${snap.docs.length} matches');
+        return snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      } catch (indexError) {
+        // Fallback: query without orderBy if index not ready
+        print('⚠️ Index not ready, using fallback query');
+        final snap = await _firestore
+            .collection('matchHistory')
+            .where('roomCode', isEqualTo: roomCode)
+            .limit(50)
+            .get();
+
+        // Sort in memory
+        final docs =
+            snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+        docs.sort((a, b) {
+          final aTime = a['completedAt'];
+          final bTime = b['completedAt'];
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+          return bTime.compareTo(aTime);
+        });
+
+        print('📜 Match history loaded (fallback): ${docs.length} matches');
+        return docs;
+      }
     } catch (e) {
       print('❌ Error getting match history: $e');
       return [];

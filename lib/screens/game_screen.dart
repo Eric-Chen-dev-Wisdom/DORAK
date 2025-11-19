@@ -376,6 +376,33 @@ class _GameScreenState extends State<GameScreen> {
     _showPowerCardSnack(cardId);
   }
 
+  void _handlePhysicalChallengeApprove(String team, int points) async {
+    // Award points to the winning team
+    int newPointsA = _currentRoom.teamAPoints;
+    int newPointsB = _currentRoom.teamBPoints;
+
+    if (team == 'A') {
+      newPointsA += points;
+    } else if (team == 'B') {
+      newPointsB += points;
+    }
+
+    // Update Firebase
+    await _firebaseService.updateTeamPoints(
+        widget.room.code, newPointsA, newPointsB);
+
+    // Update local state
+    setState(() {
+      _displayPointsA = newPointsA;
+      _displayPointsB = newPointsB;
+      _currentRoom = _currentRoom.copyWith(
+        scores: {'teamA': newPointsA, 'teamB': newPointsB},
+      );
+    });
+
+    print('💪 Physical challenge approved: Team $team earned $points pts');
+  }
+
   void _showPowerCardSnack(String cardId) {
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
@@ -802,11 +829,16 @@ class _GameScreenState extends State<GameScreen> {
                     children: [
                       _buildQuestionCard(context, currentQuestion),
                       const SizedBox(height: 20),
-                      _buildAnswerOptions(context, currentQuestion),
-                      const SizedBox(height: 20),
-                      // Show vote button for ALL players including host
-                      _buildVoteButton(context),
-                      if (widget.isHost) _buildVotesDisplay(context),
+                      // Check if it's a physical/verbal challenge (no options)
+                      if (_isPhysicalChallenge(currentQuestion))
+                        _buildPhysicalChallengeInfo(context, currentQuestion)
+                      else ...[
+                        _buildAnswerOptions(context, currentQuestion),
+                        const SizedBox(height: 20),
+                        // Show vote button for ALL players including host
+                        _buildVoteButton(context),
+                        if (widget.isHost) _buildVotesDisplay(context),
+                      ],
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -861,6 +893,7 @@ class _GameScreenState extends State<GameScreen> {
             onEndGame: _handleEndGame,
             onStartVoting: _handleStartVoting,
             onRevealAnswer: _handleRevealAnswer,
+            onPhysicalChallengeApprove: _handlePhysicalChallengeApprove,
           ),
         );
       },
@@ -1129,37 +1162,35 @@ class _GameScreenState extends State<GameScreen> {
 
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 6,
+          runSpacing: 4,
           children: [
             const Icon(Icons.category, size: 14, color: Colors.grey),
-            const SizedBox(width: 6),
             Text(
-              'Category: $currentInCategory of $totalInCategory',
+              'Category: $currentInCategory/$totalInCategory',
               style: const TextStyle(
                 color: Colors.grey,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(width: 8),
             // Difficulty indicators
             if (easyCount > 0) ...[
-              Icon(Icons.circle, size: 8, color: Colors.green),
-              Text(' $easyCount',
-                  style: TextStyle(fontSize: 10, color: Colors.grey)),
+              Icon(Icons.circle, size: 6, color: Colors.green),
+              Text('$easyCount',
+                  style: TextStyle(fontSize: 9, color: Colors.grey)),
             ],
             if (mediumCount > 0) ...[
-              SizedBox(width: 4),
-              Icon(Icons.circle, size: 8, color: Colors.orange),
-              Text(' $mediumCount',
-                  style: TextStyle(fontSize: 10, color: Colors.grey)),
+              Icon(Icons.circle, size: 6, color: Colors.orange),
+              Text('$mediumCount',
+                  style: TextStyle(fontSize: 9, color: Colors.grey)),
             ],
             if (hardCount > 0) ...[
-              SizedBox(width: 4),
-              Icon(Icons.circle, size: 8, color: Colors.red),
-              Text(' $hardCount',
-                  style: TextStyle(fontSize: 10, color: Colors.grey)),
+              Icon(Icons.circle, size: 6, color: Colors.red),
+              Text('$hardCount',
+                  style: TextStyle(fontSize: 9, color: Colors.grey)),
             ],
           ],
         ),
@@ -1174,6 +1205,177 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  bool _isPhysicalChallenge(Map<String, dynamic> question) {
+    final options = question['options'];
+    // Physical/verbal challenges have no answer options
+    return options == null || (options is List && options.isEmpty);
+  }
+
+  Widget _buildPhysicalChallengeInfo(
+      BuildContext context, Map<String, dynamic> question) {
+    final loc = AppLocalizations.of(context)!;
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.orange.shade600, Colors.deepOrange.shade400],
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              const Icon(Icons.sports_martial_arts,
+                  size: 60, color: Colors.white),
+              const SizedBox(height: 16),
+              const Text(
+                '💪 PHYSICAL CHALLENGE!',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Perform the challenge and the host will verify!',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white70,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        // Host approval buttons
+        if (widget.isHost) ...[
+          Card(
+            color: Colors.green.shade50,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  const Text(
+                    'Host: Which team completed the challenge?',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () =>
+                              _handlePhysicalChallengeResult('A', true),
+                          icon: const Icon(Icons.check_circle),
+                          label: Text('${loc.teamA} ✅'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF007A3D),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () =>
+                              _handlePhysicalChallengeResult('B', true),
+                          icon: const Icon(Icons.check_circle),
+                          label: Text('${loc.teamB} ✅'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF007A3D),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          _handlePhysicalChallengeResult('', false),
+                      icon: const Icon(Icons.cancel),
+                      label: const Text('Both Failed'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ] else ...[
+          // Non-host players see waiting message
+          Card(
+            color: Colors.blue.shade50,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: const Text(
+                '⏳ Waiting for host to approve the challenge...',
+                style: TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _handlePhysicalChallengeResult(String winningTeam, bool success) async {
+    if (!widget.isHost) return;
+
+    final currentQuestion = _questions[_currentQuestionIndex];
+    final difficulty = currentQuestion['difficulty'] as String? ?? 'easy';
+    final basePoints = _getPointsForDifficulty(difficulty);
+
+    int pointsA = 0;
+    int pointsB = 0;
+
+    if (success) {
+      if (winningTeam == 'A') {
+        pointsA = basePoints *
+            _currentRoom.teamA.length; // All team members get points
+      } else if (winningTeam == 'B') {
+        pointsB = basePoints * _currentRoom.teamB.length;
+      }
+    }
+
+    int newPointsA = _currentRoom.teamAPoints + pointsA;
+    int newPointsB = _currentRoom.teamBPoints + pointsB;
+
+    await _firebaseService.updateTeamPoints(
+        widget.room.code, newPointsA, newPointsB);
+
+    setState(() {
+      _displayPointsA = newPointsA;
+      _displayPointsB = newPointsB;
+      _currentRoom = _currentRoom.copyWith(
+        scores: {'teamA': newPointsA, 'teamB': newPointsB},
+      );
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? '✅ Team $winningTeam completed challenge! +$basePoints pts'
+              : '❌ Both teams failed the challenge',
+        ),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
     );
   }
 

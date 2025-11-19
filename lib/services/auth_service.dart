@@ -1,6 +1,7 @@
 // services/auth_service.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/user_model.dart';
@@ -101,9 +102,57 @@ class AuthService {
   }
 
   Future<UserModel?> signInWithApple() async {
-    if (kDebugMode) {
-      print('[Auth] Apple Sign-In not implemented yet');
+    try {
+      // Check if Apple Sign In is available
+      final isAvailable = await SignInWithApple.isAvailable();
+      if (!isAvailable) {
+        print('[Auth] Apple Sign-In not available on this device');
+        return null;
+      }
+
+      // Request credential from Apple
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      // Create OAuth provider
+      final oauthCredential = OAuthProvider("apple.com").credential(
+        idToken: credential.identityToken,
+        accessToken: credential.authorizationCode,
+      );
+
+      // Sign in to Firebase
+      final userCredential = await _auth.signInWithCredential(oauthCredential);
+      final firebaseUser = userCredential.user;
+
+      if (firebaseUser != null) {
+        // Create display name from Apple credential
+        String displayName = 'Apple User';
+        if (credential.givenName != null && credential.familyName != null) {
+          displayName = '${credential.givenName} ${credential.familyName}';
+        } else if (firebaseUser.displayName != null) {
+          displayName = firebaseUser.displayName!;
+        }
+
+        final user = UserModel(
+          id: firebaseUser.uid,
+          displayName: displayName,
+          email: credential.email ?? firebaseUser.email,
+          photoUrl: firebaseUser.photoURL,
+          type: UserType.apple,
+          createdAt: DateTime.now(),
+        );
+
+        print('[Auth] ✅ Apple Sign-In successful: ${user.displayName}');
+        return user;
+      }
+      return null;
+    } catch (e) {
+      print('[Auth] ❌ Apple Sign-In error: $e');
+      return null;
     }
-    return null;
   }
 }

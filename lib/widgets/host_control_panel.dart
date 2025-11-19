@@ -16,6 +16,7 @@ class HostControlPanel extends StatefulWidget {
   final Function() onEndGame;
   final Function() onStartVoting;
   final Function() onRevealAnswer;
+  final Function(String team, int points)? onPhysicalChallengeApprove;
 
   const HostControlPanel({
     super.key,
@@ -28,6 +29,7 @@ class HostControlPanel extends StatefulWidget {
     required this.onEndGame,
     required this.onStartVoting,
     required this.onRevealAnswer,
+    this.onPhysicalChallengeApprove,
   });
 
   @override
@@ -1012,9 +1014,9 @@ class _HostControlPanelState extends State<HostControlPanel> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: widget.onSkipQuestion,
-                    icon: const Icon(Icons.skip_next, size: 20),
-                    label: Text(l10n.skip),
+                    onPressed: _showPhysicalChallengeApproval,
+                    icon: const Icon(Icons.sports_martial_arts, size: 20),
+                    label: const Text('Approve Challenge'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1025,6 +1027,82 @@ class _HostControlPanelState extends State<HostControlPanel> {
             ),
           ],
         ),
+      ),
+    );
+  }
+  
+  void _showPhysicalChallengeApproval() {
+    final l10n = AppLocalizations.of(context)!;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.sports_martial_arts, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('💪 Physical Challenge'),
+          ],
+        ),
+        content: const Text(
+          'Which team successfully completed the challenge?',
+          style: TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.cancel),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _approvePhysicalChallenge('A');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFCE1126),
+            ),
+            child: Text('${l10n.teamA} ✅'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _approvePhysicalChallenge('B');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF007A3D),
+            ),
+            child: Text('${l10n.teamB} ✅'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Future<void> _approvePhysicalChallenge(String winningTeam) async {
+    final l10n = AppLocalizations.of(context)!;
+    
+    // Award points based on current room difficulty setting
+    // For physical challenges, use 100 pts as base
+    final basePoints = 100;
+    final teamSize = winningTeam == 'A' 
+        ? _currentRoom.teamA.length 
+        : _currentRoom.teamB.length;
+    final totalPoints = basePoints * teamSize;
+    
+    // Call parent callback if provided
+    if (widget.onPhysicalChallengeApprove != null) {
+      widget.onPhysicalChallengeApprove!(winningTeam, totalPoints);
+    } else {
+      // Fallback: adjust points directly
+      await _adjustPoints(winningTeam, totalPoints);
+    }
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '✅ ${l10n.team} $winningTeam completed challenge! +$totalPoints pts ($basePoints × $teamSize players)',
+        ),
+        backgroundColor: Colors.orange,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
