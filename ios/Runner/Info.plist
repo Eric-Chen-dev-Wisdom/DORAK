@@ -50,5 +50,44 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Firebase & Google Sign-In -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.YOUR-CLIENT-ID</string>
+			</array>
+		</dict>
+	</array>
+	
+	<!-- Network permissions -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	
+	<!-- Apple Sign-In capability (already in entitlements, but noted here) -->
+	
+	<!-- Motion sensors permission (for physical challenges) -->
+	<key>NSMotionUsageDescription</key>
+	<string>DORAK uses motion sensors for fun physical challenge games</string>
+	
+	<!-- Microphone permission (for future karaoke feature) -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>DORAK may use microphone for karaoke challenges</string>
+	
+	<!-- Photo library (for future features) -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>DORAK may access photos for sharing game moments</string>
+	
+	<!-- Camera (for future selfie challenges) -->
+	<key>NSCameraUsageDescription</key>
+	<string>DORAK may use camera for photo challenges</string>
+	
 </dict>
 </plist>

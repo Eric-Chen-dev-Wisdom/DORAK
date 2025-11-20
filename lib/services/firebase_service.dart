@@ -53,6 +53,10 @@ class FirebaseService {
             'isTimerRunning': true,
             'currentTimer': 60,
             'timerUpdatedAt': FieldValue.serverTimestamp(),
+            'isJackpotQuestion': false, // Reset jackpot for next question
+            'jackpotPoints': null,
+            'physicalChallengeApproved':
+                null, // Reset approval for next question
           });
         }
       });

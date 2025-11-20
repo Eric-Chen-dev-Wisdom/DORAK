@@ -1088,6 +1088,13 @@ class _HostControlPanelState extends State<HostControlPanel> {
         : _currentRoom.teamB.length;
     final totalPoints = basePoints * teamSize;
     
+    // Mark as approved in Firebase so all players see it
+    await _firebaseService.updateRoomField(
+      _currentRoom.code,
+      'physicalChallengeApproved',
+      winningTeam,
+    );
+    
     // Call parent callback if provided
     if (widget.onPhysicalChallengeApprove != null) {
       widget.onPhysicalChallengeApprove!(winningTeam, totalPoints);

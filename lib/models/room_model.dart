@@ -47,6 +47,9 @@ class GameRoom {
 
   // Question anti-repetition system
   List<String> usedQuestionIds; // Track used question IDs to prevent repeats
+  
+  // Physical challenge approval
+  String? physicalChallengeApproved; // 'A', 'B', or null (not approved yet)
 
   GameRoom({
     required this.code,
@@ -83,6 +86,7 @@ class GameRoom {
     this.jackpotPoints,
     this.jackpotAccepted = false,
     List<String>? usedQuestionIds,
+    this.physicalChallengeApproved,
   })  : scores = scores ?? {'teamA': 0, 'teamB': 0},
         usedPowerCards = usedPowerCards ?? [],
         questionCount = questionCount ?? 10,
@@ -147,6 +151,7 @@ class GameRoom {
     int? jackpotPoints,
     bool? jackpotAccepted,
     List<String>? usedQuestionIds,
+    String? physicalChallengeApproved,
   }) {
     return GameRoom(
       code: code ?? this.code,
@@ -183,6 +188,7 @@ class GameRoom {
       jackpotPoints: jackpotPoints ?? this.jackpotPoints,
       jackpotAccepted: jackpotAccepted ?? this.jackpotAccepted,
       usedQuestionIds: usedQuestionIds ?? this.usedQuestionIds,
+      physicalChallengeApproved: physicalChallengeApproved ?? this.physicalChallengeApproved,
     );
   }
 
@@ -301,6 +307,7 @@ class GameRoom {
       'jackpotPoints': jackpotPoints,
       'jackpotAccepted': jackpotAccepted,
       'usedQuestionIds': usedQuestionIds,
+      'physicalChallengeApproved': physicalChallengeApproved,
       // Intentionally omit timerUpdatedAt here so only setTimer() controls it
     };
   }
@@ -384,6 +391,7 @@ class GameRoom {
       jackpotPoints: (json['jackpotPoints'] as num?)?.toInt(),
       jackpotAccepted: json['jackpotAccepted'] ?? false,
       usedQuestionIds: List<String>.from(json['usedQuestionIds'] ?? []),
+      physicalChallengeApproved: json['physicalChallengeApproved'],
     );
   }
 

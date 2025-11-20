@@ -1216,167 +1216,65 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildPhysicalChallengeInfo(
       BuildContext context, Map<String, dynamic> question) {
-    final loc = AppLocalizations.of(context)!;
+    final approvedTeam = _currentRoom.physicalChallengeApproved;
+    final isApproved = approvedTeam != null;
+
     return Column(
       children: [
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.orange.shade600, Colors.deepOrange.shade400],
+              colors: isApproved
+                  ? [Colors.green.shade600, Colors.green.shade400]
+                  : [Colors.orange.shade600, Colors.deepOrange.shade400],
             ),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
             children: [
-              const Icon(Icons.sports_martial_arts,
-                  size: 60, color: Colors.white),
+              Icon(
+                isApproved ? Icons.check_circle : Icons.sports_martial_arts,
+                size: 60,
+                color: Colors.white,
+              ),
               const SizedBox(height: 16),
-              const Text(
-                '💪 PHYSICAL CHALLENGE!',
-                style: TextStyle(
+              Text(
+                isApproved ? '✅ CHALLENGE APPROVED!' : '💪 PHYSICAL CHALLENGE!',
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Perform the challenge and the host will verify!',
-                style: TextStyle(
+              Text(
+                _getPhysicalChallengeMessage(isApproved, approvedTeam),
+                style: const TextStyle(
                   fontSize: 14,
-                  color: Colors.white70,
+                  color: Colors.white,
                 ),
                 textAlign: TextAlign.center,
               ),
             ],
           ),
         ),
-        const SizedBox(height: 20),
-        // Host approval buttons
-        if (widget.isHost) ...[
-          Card(
-            color: Colors.green.shade50,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  const Text(
-                    'Host: Which team completed the challenge?',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              _handlePhysicalChallengeResult('A', true),
-                          icon: const Icon(Icons.check_circle),
-                          label: Text('${loc.teamA} ✅'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF007A3D),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              _handlePhysicalChallengeResult('B', true),
-                          icon: const Icon(Icons.check_circle),
-                          label: Text('${loc.teamB} ✅'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF007A3D),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          _handlePhysicalChallengeResult('', false),
-                      icon: const Icon(Icons.cancel),
-                      label: const Text('Both Failed'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ] else ...[
-          // Non-host players see waiting message
-          Card(
-            color: Colors.blue.shade50,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: const Text(
-                '⏳ Waiting for host to approve the challenge...',
-                style: TextStyle(fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        ],
       ],
     );
   }
 
-  void _handlePhysicalChallengeResult(String winningTeam, bool success) async {
-    if (!widget.isHost) return;
-
-    final currentQuestion = _questions[_currentQuestionIndex];
-    final difficulty = currentQuestion['difficulty'] as String? ?? 'easy';
-    final basePoints = _getPointsForDifficulty(difficulty);
-
-    int pointsA = 0;
-    int pointsB = 0;
-
-    if (success) {
-      if (winningTeam == 'A') {
-        pointsA = basePoints *
-            _currentRoom.teamA.length; // All team members get points
-      } else if (winningTeam == 'B') {
-        pointsB = basePoints * _currentRoom.teamB.length;
+  String _getPhysicalChallengeMessage(bool isApproved, String? approvedTeam) {
+    if (widget.isHost) {
+      if (isApproved) {
+        return 'Team $approvedTeam successfully completed! Points awarded.';
       }
+      return 'Use "Approve Challenge" button in Host Controls to award points!';
+    } else {
+      if (isApproved) {
+        return '✅ Team $approvedTeam completed the challenge! Points awarded.';
+      }
+      return '⏳ Perform the challenge! Waiting for host approval...';
     }
-
-    int newPointsA = _currentRoom.teamAPoints + pointsA;
-    int newPointsB = _currentRoom.teamBPoints + pointsB;
-
-    await _firebaseService.updateTeamPoints(
-        widget.room.code, newPointsA, newPointsB);
-
-    setState(() {
-      _displayPointsA = newPointsA;
-      _displayPointsB = newPointsB;
-      _currentRoom = _currentRoom.copyWith(
-        scores: {'teamA': newPointsA, 'teamB': newPointsB},
-      );
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
-              ? '✅ Team $winningTeam completed challenge! +$basePoints pts'
-              : '❌ Both teams failed the challenge',
-        ),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
-    );
   }
 
   Widget _buildAnswerOptions(
