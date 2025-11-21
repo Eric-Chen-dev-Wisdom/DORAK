@@ -34,8 +34,7 @@ class QuestionService {
     return _db.collection('categories').snapshots().map((snap) {
       final lang = langCode ??
           LocaleService.locale.value?.languageCode ??
-          ui.PlatformDispatcher.instance.locale.languageCode ??
-          'en';
+          ui.PlatformDispatcher.instance.locale.languageCode;
       return snap.docs.map((d) {
         final raw = d.data();
         final localizedName = raw['name_${lang}'] ?? raw['name'] ?? '';
@@ -261,6 +260,18 @@ class QuestionService {
         .collection('challenges')
         .doc(q.id)
         .set(data);
+  }
+  
+  // Update challenge with custom data (for imports with int correctAnswer, etc.)
+  Future<void> upsertChallengeData(
+      String categoryId, String challengeId, Map<String, dynamic> data) async {
+    data['updatedAt'] = FieldValue.serverTimestamp();
+    await _db
+        .collection('categories')
+        .doc(categoryId)
+        .collection('challenges')
+        .doc(challengeId)
+        .set(data, SetOptions(merge: true));
   }
 
   Future<void> deleteChallenge(String categoryId, String challengeId) async {

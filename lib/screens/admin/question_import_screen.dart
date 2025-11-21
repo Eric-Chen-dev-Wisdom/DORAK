@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../services/opentrivia_service.dart';
 import '../../services/translation_service.dart';
 import '../../services/question_service.dart';
-import '../../models/category_model.dart';
 import '../../data/default_categories.dart';
 import '../../utils/constants.dart';
 
@@ -340,21 +339,21 @@ class _QuestionImportScreenState extends State<QuestionImportScreen> {
   }
 
   Future<void> _saveQuestionToFirestore(Map<String, dynamic> question) async {
-    final challenge = Challenge(
-      id: question['id'],
-      question: question['question_en'],
-      options: List<String>.from(question['options_en'] ?? []),
-      correctAnswer: question['correctAnswer'],
-      difficulty: question['difficulty'] == 'easy'
-          ? ChallengeDifficulty.easy
-          : (question['difficulty'] == 'medium'
-              ? ChallengeDifficulty.medium
-              : ChallengeDifficulty.hard),
+    // Save directly to Firestore with correct types
+    // correctAnswer is stored as int (index) in Firestore
+    await _questionService.upsertChallengeData(
+      _selectedCategoryId,
+      question['id'],
+      {
+        'question_en': question['question_en'],
+        'question_ar': question['question_ar'],
+        'options_en': question['options_en'],
+        'options_ar': question['options_ar'],
+        'correctAnswer': question['correctAnswer'], // int (index)
+        'difficulty': question['difficulty'],
+        'source': 'opentrivia',
+        'imported_at': question['imported_at'],
+      },
     );
-
-    await _questionService.upsertChallenge(_selectedCategoryId, challenge);
-
-    // Also save Arabic version via Firestore update
-    await _questionService.upsertChallenge(_selectedCategoryId, challenge);
   }
 }
