@@ -26,6 +26,7 @@ class _QuestionImportScreenState extends State<QuestionImportScreen> {
   int _translatedCount = 0;
   int _savedCount = 0;
   String _statusMessage = '';
+  bool _skipTranslation = false; // Option to skip translation
 
   final List<Map<String, dynamic>> _previewQuestions = [];
 
@@ -280,19 +281,23 @@ class _QuestionImportScreenState extends State<QuestionImportScreen> {
 
       setState(() {
         _importedCount = questions.length;
-        _statusMessage = 'Translating questions to Arabic...';
+        _statusMessage = _skipTranslation
+            ? 'Preparing questions...'
+            : 'Translating questions to Arabic...';
       });
 
-      // Step 2: Translate to Arabic
-      final translatedQuestions = await _translator.translateQuestionsBatch(
-        questions,
-        onProgress: (current, total) {
-          setState(() {
-            _translatedCount = current;
-            _statusMessage = 'Translating... ($current/$total)';
-          });
-        },
-      );
+      // Step 2: Translate to Arabic (or skip)
+      final translatedQuestions = _skipTranslation
+          ? questions.map((q) => _translator.skipTranslation(q)).toList()
+          : await _translator.translateQuestionsBatch(
+              questions,
+              onProgress: (current, total) {
+                setState(() {
+                  _translatedCount = current;
+                  _statusMessage = 'Translating... ($current/$total)';
+                });
+              },
+            );
 
       setState(() {
         _statusMessage = 'Saving to Firestore...';

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -17,7 +18,12 @@ class TranslationService {
         'langpair': 'en|ar',
       });
       
-      final response = await http.get(uri);
+      final response = await http.get(uri).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Translation API timeout');
+        },
+      );
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -39,11 +45,16 @@ class TranslationService {
     final arabicTexts = <String>[];
     
     for (final text in englishTexts) {
-      final translated = await translateToArabic(text);
-      arabicTexts.add(translated);
-      
-      // Small delay to avoid rate limiting (MyMemory is free)
-      await Future.delayed(const Duration(milliseconds: 500));
+      try {
+        final translated = await translateToArabic(text);
+        arabicTexts.add(translated);
+        
+        // Small delay to avoid rate limiting (MyMemory is free)
+        await Future.delayed(const Duration(milliseconds: 300));
+      } catch (e) {
+        print('⚠️ Translation timeout for: $text, using original');
+        arabicTexts.add(text); // Use English if translation fails
+      }
     }
     
     return arabicTexts;
@@ -103,6 +114,7 @@ class TranslationService {
   }
   
   /// Check if translation API is available
+  /// Check if translation API is available
   Future<bool> isApiAvailable() async {
     try {
       final result = await translateToArabic('test');
@@ -110,6 +122,18 @@ class TranslationService {
     } catch (e) {
       return false;
     }
+  }
+  
+  /// Quick translation without Arabic (for testing/fallback)
+  /// Just stores English in both fields
+  Map<String, dynamic> skipTranslation(Map<String, dynamic> questionData) {
+    return {
+      ...questionData,
+      'question_ar': questionData['question_en'],
+      'options_ar': questionData['options_en'],
+      'translated_at': DateTime.now().toIso8601String(),
+      'translation_skipped': true,
+    };
   }
 }
 

@@ -5,6 +5,7 @@ import '../admin/category_editor.dart';
 import '../admin/challenge_list.dart';
 import '../admin/challenge_editor.dart';
 import '../admin/question_import_screen.dart';
+import '../admin/analytics_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -147,7 +148,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 Navigator.pop(sheetContext);
                 Navigator.push(
                   rootContext,
-                  MaterialPageRoute(builder: (_) => const QuestionImportScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const QuestionImportScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.analytics, color: Colors.purple),
+              title: const Text('Analytics Dashboard'),
+              subtitle: const Text('View gameplay statistics'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                Navigator.push(
+                  rootContext,
+                  MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
                 );
               },
             ),

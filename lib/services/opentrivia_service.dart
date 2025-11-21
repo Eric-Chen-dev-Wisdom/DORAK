@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -51,11 +52,17 @@ class OpenTriviaService {
         params['difficulty'] = difficulty.toLowerCase();
       }
 
-      // Make API request
+      // Make API request with timeout
       final uri = Uri.parse(_baseUrl).replace(queryParameters: params);
       print('🌐 Fetching from OpenTrivia: $uri');
 
-      final response = await http.get(uri);
+      final response = await http.get(uri).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException(
+              'OpenTrivia API timeout - try with fewer questions');
+        },
+      );
 
       if (response.statusCode != 200) {
         throw Exception('OpenTrivia API error: ${response.statusCode}');
