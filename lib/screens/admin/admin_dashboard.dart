@@ -4,6 +4,7 @@ import '../../models/category_model.dart';
 import '../admin/category_editor.dart';
 import '../admin/challenge_list.dart';
 import '../admin/challenge_editor.dart';
+import '../admin/question_import_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -135,6 +136,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       content: Text(count == 0
                           ? 'Default questions are up to date.'
                           : 'Added $count default questions.')),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud_download, color: Colors.blue),
+              title: const Text('Import from OpenTrivia DB'),
+              subtitle: const Text('Fetch & translate 1000+ questions'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                Navigator.push(
+                  rootContext,
+                  MaterialPageRoute(builder: (_) => const QuestionImportScreen()),
                 );
               },
             ),

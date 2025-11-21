@@ -22,6 +22,7 @@ dependencies:
   share_plus: ^7.0.1
   audioplayers: ^5.2.1
   sensors_plus: ^5.0.1
+  http: ^1.2.0
   flutter_localizations:
     sdk: flutter
   intl: ^0.20.0

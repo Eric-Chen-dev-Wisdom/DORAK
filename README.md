@@ -316,21 +316,8 @@ flutter build ios --release
 - ✅ Real-time multiplayer sync
 
 ---
-
-## 👨‍💻 Development
-
-### Team
 - **Owner**: Jassim Alsayrafi
 - **Email**: jalsayrafi@icloud.com
-- **Development**: 10-day sprint (Nov 9-19, 2025)
-
-### Development Timeline
-- **Days 1-2**: Scoring system
-- **Days 3-4**: Match history & anti-repetition
-- **Days 5-6**: Sensors, audio, UI polish
-- **Days 7-8**: Testing & bug fixes
-- **Days 9-10**: Build & launch
-
 ---
 
 ## 📄 License
