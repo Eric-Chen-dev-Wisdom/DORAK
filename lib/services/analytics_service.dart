@@ -18,15 +18,29 @@ class AnalyticsService {
     }
   }
 
-  /// Get total games played
+  /// Get total games played (from analytics collection)
   Future<int> getTotalGames() async {
     try {
-      final snapshot =
-          await _firestore.collection('matchHistory').count().get();
-      return snapshot.count ?? 0;
+      // First try analytics collection (new games)
+      final analyticsSnapshot = await _firestore.collection('analytics').count().get();
+      final analyticsCount = analyticsSnapshot.count ?? 0;
+      
+      // Fallback to matchHistory for backward compatibility
+      if (analyticsCount == 0) {
+        final matchSnapshot = await _firestore.collection('matchHistory').count().get();
+        return matchSnapshot.count ?? 0;
+      }
+      
+      return analyticsCount;
     } catch (e) {
       print('❌ Error getting total games: $e');
-      return 0;
+      // Fallback: try to count matchHistory
+      try {
+        final snapshot = await _firestore.collection('matchHistory').count().get();
+        return snapshot.count ?? 0;
+      } catch (e2) {
+        return 0;
+      }
     }
   }
 

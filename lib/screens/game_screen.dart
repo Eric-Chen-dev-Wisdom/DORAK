@@ -4,10 +4,12 @@ import 'dart:async';
 import 'package:DORAK/l10n/app_localizations.dart';
 import '../models/room_model.dart';
 import '../models/user_model.dart';
+import '../models/analytics_model.dart';
 import '../widgets/host_control_panel.dart';
 import '../utils/constants.dart';
 import 'result_screen.dart';
 import '../services/firebase_service.dart';
+import '../services/analytics_service.dart';
 // Using host-written timestamps only; no server offset
 import '../widgets/chat_widget.dart';
 import '../services/lobby_service.dart';
@@ -443,6 +445,22 @@ class _GameScreenState extends State<GameScreen> {
       winner = 'B';
     }
 
+    // Calculate category usage
+    final categoryUsage = <String, int>{};
+    for (final q in _questions) {
+      final catId = q['categoryId'] as String? ?? 'unknown';
+      categoryUsage[catId] = (categoryUsage[catId] ?? 0) + 1;
+    }
+
+    // Calculate difficulty breakdown
+    final difficultyBreakdown = <String, int>{'easy': 0, 'medium': 0, 'hard': 0};
+    for (final q in _questions) {
+      final diff = (q['difficulty'] as String? ?? 'easy').toLowerCase();
+      if (difficultyBreakdown.containsKey(diff)) {
+        difficultyBreakdown[diff] = difficultyBreakdown[diff]! + 1;
+      }
+    }
+
     // Save match history
     try {
       await _firebaseService.saveMatchHistory({
@@ -467,6 +485,33 @@ class _GameScreenState extends State<GameScreen> {
       print('✅ Match history saved successfully');
     } catch (e) {
       print('❌ Failed to save match history: $e');
+    }
+
+    // Save analytics data
+    try {
+      final analyticsService = AnalyticsService();
+      final analytics = GameAnalytics(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        roomCode: widget.room.code,
+        timestamp: DateTime.now(),
+        totalPlayers: _currentRoom.teamA.length + _currentRoom.teamB.length,
+        questionsAnswered: _questions.length,
+        gameDuration: duration,
+        categoryUsage: categoryUsage,
+        difficultyBreakdown: difficultyBreakdown,
+        bonusStats: {
+          'streaksEarned': _currentRoom.teamAStreak + _currentRoom.teamBStreak,
+          'speedBonuses': 0, // Can track if needed
+          'jackpotsPlayed': _questions.where((q) => q['isJackpot'] == true).length,
+        },
+        powerCardsUsed: _currentRoom.usedPowerCards,
+        winningTeam: winner,
+      );
+
+      await analyticsService.saveGameAnalytics(analytics);
+      print('📊 Analytics saved successfully');
+    } catch (e) {
+      print('❌ Failed to save analytics: $e');
     }
 
     // End game in Firebase
