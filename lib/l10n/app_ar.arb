@@ -4,6 +4,7 @@
   "loginFailed": "فشل تسجيل الدخول",
   "createNewRoom": "إنشاء غرفة جديدة",
   "continueGuest": "العب كضيف",
+  "createAccount": "إنشاء حساب",
   "welcome": "مرحبًا بك في دوراك!",
   "selectCategories": "اختر الفئات",
   "selectCategoriesHint": "اختر من 5 إلى 8 فئات لبدء اللعبة",

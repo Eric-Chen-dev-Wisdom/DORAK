@@ -83,6 +83,10 @@ class MatchHistoryScreen extends StatelessWidget {
 
   Widget _buildMatchCard(
       BuildContext context, MatchHistory match, AppLocalizations loc) {
+    // Debug: Print team data
+    print('📋 Match: Team A players: ${match.teamAPlayerNames}');
+    print('📋 Match: Team B players: ${match.teamBPlayerNames}');
+    
     final isTeamAWinner = match.winner == 'A';
     final isTeamBWinner = match.winner == 'B';
     final isTie = match.winner == 'tie';
@@ -237,13 +241,15 @@ class MatchHistoryScreen extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Players
+            // Players - Always show both teams
             Row(
               children: [
                 Expanded(
                   child: _buildPlayerList(
                     'Team A',
-                    match.teamAPlayerNames,
+                    match.teamAPlayerNames.isNotEmpty 
+                        ? match.teamAPlayerNames 
+                        : ['No players'],
                     AppConstants.primaryRed,
                   ),
                 ),
@@ -251,7 +257,9 @@ class MatchHistoryScreen extends StatelessWidget {
                 Expanded(
                   child: _buildPlayerList(
                     'Team B',
-                    match.teamBPlayerNames,
+                    match.teamBPlayerNames.isNotEmpty
+                        ? match.teamBPlayerNames
+                        : ['No players'],
                     AppConstants.primaryGreen,
                   ),
                 ),

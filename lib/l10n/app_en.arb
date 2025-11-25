@@ -4,6 +4,7 @@
   "loginFailed": "Login failed",
   "createNewRoom": "Create New Room",
   "continueGuest": "Play as Guest",
+  "createAccount": "Create Account",
   "welcome": "Welcome to DORAK!",
   "selectCategories": "Select Categories",
   "selectCategoriesHint": "Select 5–8 categories to start the game",

@@ -48,6 +48,8 @@ class _GameScreenState extends State<GameScreen> {
   int _displayPointsA = 0;
   int _displayPointsB = 0;
   late GameRoom _currentRoom;
+  bool _gameDataSaved = false; // Prevent duplicate saves
+  bool _navigatedToResults = false; // Prevent multiple navigations
 
   // Add real-time vote tracking
   Map<String, dynamic> _currentVotes = {'teamAVotes': {}, 'teamBVotes': {}};
@@ -265,14 +267,31 @@ class _GameScreenState extends State<GameScreen> {
           _showPowerCardSnack(cardId);
         }
       }
-      if (state == 'GameState.gameComplete' && mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                ResultScreen(room: _currentRoom, user: widget.user),
-          ),
-        );
+      if (state == 'GameState.gameComplete' &&
+          mounted &&
+          !_navigatedToResults) {
+        // Mark as navigated immediately to prevent multiple calls
+        _navigatedToResults = true;
+
+        // Save analytics and match history before navigating (once only)
+        if (!_gameDataSaved) {
+          _gameDataSaved = true;
+          print('🎯 Auto-save triggered (state changed to gameComplete)');
+          _saveGameDataOnComplete(); // Fire and forget, don't await in listener
+        }
+
+        // Wait a moment for save to start, then navigate
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    ResultScreen(room: _currentRoom, user: widget.user),
+              ),
+            );
+          }
+        });
       }
     });
 
@@ -432,7 +451,8 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  void _handleEndGame() async {
+  // Extract game data saving to reusable method
+  Future<void> _saveGameDataOnComplete() async {
     // Calculate game duration
     final duration =
         DateTime.now().difference(_currentRoom.createdAt).inSeconds;
@@ -453,7 +473,11 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     // Calculate difficulty breakdown
-    final difficultyBreakdown = <String, int>{'easy': 0, 'medium': 0, 'hard': 0};
+    final difficultyBreakdown = <String, int>{
+      'easy': 0,
+      'medium': 0,
+      'hard': 0
+    };
     for (final q in _questions) {
       final diff = (q['difficulty'] as String? ?? 'easy').toLowerCase();
       if (difficultyBreakdown.containsKey(diff)) {
@@ -462,6 +486,11 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     // Save match history
+    print('💾 Attempting to save match history...');
+    print('Room code: ${widget.room.code}');
+    print('Team A score: ${_currentRoom.teamAPoints}');
+    print('Team B score: ${_currentRoom.teamBPoints}');
+
     try {
       await _firebaseService.saveMatchHistory({
         'roomCode': widget.room.code,
@@ -482,12 +511,19 @@ class _GameScreenState extends State<GameScreen> {
           'powerCardsUsed': _currentRoom.usedPowerCards.length,
         },
       });
-      print('✅ Match history saved successfully');
+      print('✅ Match history saved successfully to Firestore');
     } catch (e) {
       print('❌ Failed to save match history: $e');
+      print('Stack trace: ${StackTrace.current}');
     }
 
     // Save analytics data
+    print('📊 Attempting to save analytics...');
+    print(
+        'Total players: ${_currentRoom.teamA.length + _currentRoom.teamB.length}');
+    print('Questions answered: ${_questions.length}');
+    print('Category usage: $categoryUsage');
+
     try {
       final analyticsService = AnalyticsService();
       final analytics = GameAnalytics(
@@ -502,16 +538,36 @@ class _GameScreenState extends State<GameScreen> {
         bonusStats: {
           'streaksEarned': _currentRoom.teamAStreak + _currentRoom.teamBStreak,
           'speedBonuses': 0, // Can track if needed
-          'jackpotsPlayed': _questions.where((q) => q['isJackpot'] == true).length,
+          'jackpotsPlayed':
+              _questions.where((q) => q['isJackpot'] == true).length,
         },
         powerCardsUsed: _currentRoom.usedPowerCards,
         winningTeam: winner,
       );
 
       await analyticsService.saveGameAnalytics(analytics);
-      print('📊 Analytics saved successfully');
+      print('✅ Analytics saved successfully to Firestore/analytics collection');
     } catch (e) {
       print('❌ Failed to save analytics: $e');
+      print('Stack trace: ${StackTrace.current}');
+    }
+  }
+
+  void _handleEndGame() async {
+    // Prevent multiple navigations
+    if (_navigatedToResults) {
+      print('⚠️ Already navigated to results, ignoring duplicate call');
+      return;
+    }
+    _navigatedToResults = true;
+
+    // Save all game data (only if not already saved)
+    if (!_gameDataSaved) {
+      _gameDataSaved = true;
+      print('🎯 Manual save triggered (End Game button)');
+      await _saveGameDataOnComplete();
+    } else {
+      print('ℹ️ Game data already saved, skipping duplicate save');
     }
 
     // End game in Firebase

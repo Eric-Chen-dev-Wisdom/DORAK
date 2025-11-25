@@ -119,6 +119,12 @@ abstract class AppLocalizations {
   /// **'Play as Guest'**
   String get continueGuest;
 
+  /// No description provided for @createAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Account'**
+  String get createAccount;
+
   /// No description provided for @welcome.
   ///
   /// In en, this message translates to:

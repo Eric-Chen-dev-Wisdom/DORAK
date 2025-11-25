@@ -21,6 +21,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get continueGuest => 'العب كضيف';
 
   @override
+  String get createAccount => 'إنشاء حساب';
+
+  @override
   String get welcome => 'مرحبًا بك في دوراك!';
 
   @override

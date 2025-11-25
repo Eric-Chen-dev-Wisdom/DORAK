@@ -21,6 +21,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get continueGuest => 'Play as Guest';
 
   @override
+  String get createAccount => 'Create Account';
+
+  @override
   String get welcome => 'Welcome to DORAK!';
 
   @override
