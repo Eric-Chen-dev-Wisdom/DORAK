@@ -1203,14 +1203,14 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                question['question'] ?? '',
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold, height: 1.3),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
+            const SizedBox(height: 12),
+            Text(
+              _getLocalizedQuestion(question),
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.bold, height: 1.3),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
               _buildCategoryProgress(question),
               const SizedBox(height: 8),
               Text(
@@ -1309,6 +1309,57 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  // Translate questions based on current device language
+  String _getLocalizedQuestion(Map<String, dynamic> question) {
+    final lang = Localizations.localeOf(context).languageCode;
+    
+    // DEBUG: Print what we have
+    print('🔍 Getting localized question for lang: $lang');
+    print('Question data keys: ${question.keys}');
+    print('question_en: ${question['question_en']}');
+    print('question_ar: ${question['question_ar']}');
+    
+    // Check for Arabic translation
+    if (lang == 'ar' && question['question_ar'] != null && question['question_ar'].toString().isNotEmpty) {
+      print('✅ Using Arabic question');
+      return question['question_ar'].toString();
+    }
+    
+    // Check for English translation  
+    if (question['question_en'] != null) {
+      print('⚠️ Using English question (AR not available or not in AR mode)');
+      return question['question_en'].toString();
+    }
+    
+    // Fallback to default question field
+    print('⚠️ Using fallback question field');
+    return question['question']?.toString() ?? '';
+  }
+
+  List<String> _getLocalizedOptions(Map<String, dynamic> question) {
+    final lang = Localizations.localeOf(context).languageCode;
+    
+    print('🔍 Getting localized options for lang: $lang');
+    print('options_ar available: ${question['options_ar'] != null}');
+    print('options_en available: ${question['options_en'] != null}');
+    
+    // Check for Arabic options
+    if (lang == 'ar' && question['options_ar'] != null) {
+      print('✅ Using Arabic options');
+      return List<String>.from(question['options_ar']);
+    }
+    
+    // Check for English options
+    if (question['options_en'] != null) {
+      print('⚠️ Using English options');
+      return List<String>.from(question['options_en']);
+    }
+    
+    // Fallback to default options
+    print('⚠️ Using fallback options');
+    return List<String>.from(question['options'] ?? []);
+  }
+
   bool _isPhysicalChallenge(Map<String, dynamic> question) {
     final options = question['options'];
     // Physical/verbal challenges have no answer options
@@ -1381,7 +1432,7 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildAnswerOptions(
       BuildContext context, Map<String, dynamic> question) {
     final loc = AppLocalizations.of(context)!;
-    final options = List<String>.from(question['options'] ?? []);
+    final options = _getLocalizedOptions(question);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

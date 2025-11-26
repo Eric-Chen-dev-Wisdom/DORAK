@@ -324,12 +324,52 @@ class LobbyService {
             }
           }
 
+          // Store BOTH English and Arabic versions for multi-language support
+          // Get English version from EN ARB
+          final questionEn = (_arbEn['${base}_text'] as String?) ?? q.question;
+          final optionsEn = <String>[];
+          for (var i = 1; i <= 10; i++) {
+            final v = _arbEn['${base}_opt$i'];
+            if (v is String && v.isNotEmpty) {
+              optionsEn.add(v);
+            } else {
+              break;
+            }
+          }
+          if (optionsEn.isEmpty && q.options != null) {
+            optionsEn.addAll(q.options!);
+          }
+          
+          // Get Arabic version from AR ARB
+          final questionAr = (_arb['${base}_text'] as String?) ?? q.question;
+          final optionsAr = <String>[];
+          for (var i = 1; i <= 10; i++) {
+            final v = _arb['${base}_opt$i'];
+            if (v is String && v.isNotEmpty) {
+              optionsAr.add(v);
+            } else {
+              break;
+            }
+          }
+          if (optionsAr.isEmpty && options.isNotEmpty) {
+            optionsAr.addAll(options);
+          }
+          
+          // Debug: Print what we're storing
+          print('💾 Storing question ${q.id}:');
+          print('  EN: $questionEn');
+          print('  AR: $questionAr');
+
           pool.add({
             'id': q.id,
             'categoryId': cat.id,
             'category': categoryLabel,
-            'question': question,
-            'options': options,
+            'question': question, // Current language
+            'question_en': questionEn, // Always English
+            'question_ar': questionAr, // Always Arabic  
+            'options': options, // Current language
+            'options_en': optionsEn, // Always English
+            'options_ar': optionsAr, // Always Arabic
             'correctAnswer': correctIndex,
             'difficulty': q.difficulty.name,
           });
