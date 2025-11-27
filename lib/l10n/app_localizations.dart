@@ -131,6 +131,12 @@ abstract class AppLocalizations {
   /// **'Welcome to DORAK!'**
   String get welcome;
 
+  /// No description provided for @viewMatchHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'View Match History'**
+  String get viewMatchHistory;
+
   /// No description provided for @selectCategories.
   ///
   /// In en, this message translates to:

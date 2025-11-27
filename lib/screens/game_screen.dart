@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import '../models/analytics_model.dart';
 import '../widgets/host_control_panel.dart';
 import '../utils/constants.dart';
+import '../utils/arb_loader.dart';
 import 'result_screen.dart';
 import '../services/firebase_service.dart';
 import '../services/analytics_service.dart';
@@ -50,6 +51,7 @@ class _GameScreenState extends State<GameScreen> {
   late GameRoom _currentRoom;
   bool _gameDataSaved = false; // Prevent duplicate saves
   bool _navigatedToResults = false; // Prevent multiple navigations
+  Map<String, dynamic> _arbCache = {}; // Cache for ARB translations
 
   // Add real-time vote tracking
   Map<String, dynamic> _currentVotes = {'teamAVotes': {}, 'teamBVotes': {}};
@@ -61,6 +63,27 @@ class _GameScreenState extends State<GameScreen> {
   bool? _lastRunning;
 
   final Set<String> _ackPowerCards = {};
+
+  Future<void> _loadArbTranslations() async {
+    try {
+      print('🔄 Loading ARB translations...');
+      final lang = Localizations.localeOf(context).languageCode;
+      print('  Language: $lang');
+      
+      _arbCache = lang == 'ar' ? await ArbLoader.loadArabic() : await ArbLoader.loadEnglish();
+      
+      print('✅ Loaded ${_arbCache.length} ARB translations for: $lang');
+      print('  Sample keys: ${_arbCache.keys.take(5).toList()}');
+      
+      // Force UI update
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print('❌ Error loading ARB: $e');
+      print('Stack: ${StackTrace.current}');
+    }
+  }
 
   Future<void> _loadQuestions() async {
     if (widget.room.preparedQuestions.isNotEmpty) {
@@ -171,8 +194,18 @@ class _GameScreenState extends State<GameScreen> {
     _displayPointsA = _currentRoom.teamAPoints;
     _displayPointsB = _currentRoom.teamBPoints;
     _ackPowerCards.addAll(_currentRoom.usedPowerCards);
+    
+    // Reset save flags for new game
+    _saveInProgress = false;
+    _gameDataSaved = false;
+    _navigatedToResults = false;
 
-    _loadQuestions();
+    // IMPORTANT: Load ARB translations FIRST, then questions
+    _loadArbTranslations().then((_) {
+      print('🎯 ARB loaded, now loading questions...');
+      _loadQuestions();
+    });
+    // Don't call _loadQuestions() here - wait for ARB first!
 
     // Start listening to votes in real-time
     _startVotesListener();
@@ -451,8 +484,18 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
+  // Static flag to track if save is in progress (prevents race conditions)
+  static bool _saveInProgress = false;
+  
   // Extract game data saving to reusable method
   Future<void> _saveGameDataOnComplete() async {
+    // Extra safety: check both flags to prevent any race conditions
+    if (_saveInProgress) {
+      print('⚠️ Save already in progress, skipping duplicate call');
+      return;
+    }
+    _saveInProgress = true;
+    
     // Calculate game duration
     final duration =
         DateTime.now().difference(_currentRoom.createdAt).inSeconds;
@@ -880,11 +923,25 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
 
-    if (_loadingQuestions) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+      if (_loadingQuestions) {
+        return Scaffold(
+          body: Stack(
+            children: [
+              // Kuwaiti background for loading state
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0.12,
+                  child: Image.asset(
+                    'assets/images/Kuwaiti.jpg',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const Center(child: CircularProgressIndicator()),
+            ],
+          ),
+        );
+      }
 
     final currentQuestion = _questions[_currentQuestionIndex];
 
@@ -1309,54 +1366,80 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  // Translate questions based on current device language
+  // SIMPLE SOLUTION: Load from cached ARB based on language
   String _getLocalizedQuestion(Map<String, dynamic> question) {
+    final questionId = question['id'] as String?;
     final lang = Localizations.localeOf(context).languageCode;
     
-    // DEBUG: Print what we have
-    print('🔍 Getting localized question for lang: $lang');
-    print('Question data keys: ${question.keys}');
-    print('question_en: ${question['question_en']}');
-    print('question_ar: ${question['question_ar']}');
+    print('🔍 _getLocalizedQuestion called');
+    print('  Question ID: $questionId');
+    print('  Language: $lang');
+    print('  🔎 FULL QUESTION DATA: $question');
+    print('  question_ar: ${question['question_ar']}');
+    print('  question_en: ${question['question_en']}');
+    print('  question: ${question['question']}');
     
-    // Check for Arabic translation
-    if (lang == 'ar' && question['question_ar'] != null && question['question_ar'].toString().isNotEmpty) {
-      print('✅ Using Arabic question');
-      return question['question_ar'].toString();
+    // For default questions (q_gk_001 format), use ARB
+    if (questionId != null && questionId.startsWith('q_')) {
+      final key = '${questionId}_text';
+      final arbText = _arbCache[key];
+      
+      if (arbText != null && arbText.toString().isNotEmpty) {
+        print('  ✅ Using ARB translation!');
+        return arbText.toString();
+      }
     }
     
-    // Check for English translation  
-    if (question['question_en'] != null) {
-      print('⚠️ Using English question (AR not available or not in AR mode)');
+    // For OpenTrivia/imported questions - use stored translations
+    if (lang == 'ar') {
+      // Try Arabic first
+      if (question['question_ar'] != null && question['question_ar'].toString().isNotEmpty) {
+        print('  ✅ Using stored Arabic translation');
+        return question['question_ar'].toString();
+      }
+    }
+    
+    // Try English
+    if (question['question_en'] != null && question['question_en'].toString().isNotEmpty) {
+      print('  ✅ Using stored English translation');
       return question['question_en'].toString();
     }
     
-    // Fallback to default question field
-    print('⚠️ Using fallback question field');
+    // Final fallback to 'question' field
+    print('  ⚠️ Using fallback question field');
     return question['question']?.toString() ?? '';
   }
 
   List<String> _getLocalizedOptions(Map<String, dynamic> question) {
-    final lang = Localizations.localeOf(context).languageCode;
+    final questionId = question['id'] as String?;
     
-    print('🔍 Getting localized options for lang: $lang');
-    print('options_ar available: ${question['options_ar'] != null}');
-    print('options_en available: ${question['options_en'] != null}');
-    
-    // Check for Arabic options
-    if (lang == 'ar' && question['options_ar'] != null) {
-      print('✅ Using Arabic options');
-      return List<String>.from(question['options_ar']);
+    // For default questions (q_gk_001 format), use ARB
+    if (questionId != null && questionId.startsWith('q_')) {
+      final options = <String>[];
+      for (int i = 1; i <= 10; i++) {
+        final key = '${questionId}_opt$i';
+        final value = _arbCache[key];
+        if (value != null && value.toString().isNotEmpty) {
+          options.add(value.toString());
+        } else {
+          break;
+        }
+      }
+      if (options.isNotEmpty) {
+        return options; // ✅ From ARB!
+      }
     }
     
-    // Check for English options
+    // For imported questions, use stored translations
+    final lang = Localizations.localeOf(context).languageCode;
+    if (lang == 'ar' && question['options_ar'] != null) {
+      return List<String>.from(question['options_ar']);
+    }
     if (question['options_en'] != null) {
-      print('⚠️ Using English options');
       return List<String>.from(question['options_en']);
     }
     
-    // Fallback to default options
-    print('⚠️ Using fallback options');
+    // Final fallback
     return List<String>.from(question['options'] ?? []);
   }
 

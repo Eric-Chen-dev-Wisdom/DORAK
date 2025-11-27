@@ -146,11 +146,11 @@ class LobbyService {
       if (room == null) throw Exception('Room not found');
 
       final String lang = (langCode ?? 'en').toLowerCase();
-      // Load ARB for fallback if Firestore is missing localization
-      final Map<String, dynamic> _arb = await _loadArb(lang);
-      // Also load English ARB for sanity fallback when current data is Arabic but locale is EN
-      final Map<String, dynamic> _arbEn =
-          lang == 'en' ? _arb : await _loadArb('en');
+      // Always load BOTH English and Arabic ARB files for multi-language support
+      final Map<String, dynamic> _arbEn = await _loadArb('en');
+      final Map<String, dynamic> _arbAr = await _loadArb('ar');
+      // Current language ARB for display
+      final Map<String, dynamic> _arb = lang == 'ar' ? _arbAr : _arbEn;
       final List<Map<String, dynamic>> pool = [];
       
       // Get list of already used question IDs for this room
@@ -252,12 +252,29 @@ class LobbyService {
             }
           }
 
+          // Get BOTH language versions from Firestore data
+          final questionEn = (data['question_en'] as String?) ?? 
+                             (data['question'] as String?) ?? 
+                             question;
+          final questionAr = (data['question_ar'] as String?) ?? 
+                             questionEn; // Fallback to English if no Arabic
+          
+          final optionsEn = (data['options_en'] as List?)?.cast<String>() ?? 
+                            (data['options'] as List?)?.cast<String>() ?? 
+                            options;
+          final optionsAr = (data['options_ar'] as List?)?.cast<String>() ?? 
+                            optionsEn; // Fallback to English if no Arabic
+
           pool.add({
             'id': doc.id,
             'categoryId': cat.id,
             'category': categoryLabel,
             'question': question,
+            'question_en': questionEn, // ✅ Always include English
+            'question_ar': questionAr, // ✅ Always include Arabic
             'options': options,
+            'options_en': optionsEn,   // ✅ English options
+            'options_ar': optionsAr,   // ✅ Arabic options
             'correctAnswer': correctIndex,
             'difficulty': diffStr,
           });
@@ -340,11 +357,11 @@ class LobbyService {
             optionsEn.addAll(q.options!);
           }
           
-          // Get Arabic version from AR ARB
-          final questionAr = (_arb['${base}_text'] as String?) ?? q.question;
+          // Get Arabic version from AR ARB (always use _arbAr, not _arb)
+          final questionAr = (_arbAr['${base}_text'] as String?) ?? q.question;
           final optionsAr = <String>[];
           for (var i = 1; i <= 10; i++) {
-            final v = _arb['${base}_opt$i'];
+            final v = _arbAr['${base}_opt$i'];
             if (v is String && v.isNotEmpty) {
               optionsAr.add(v);
             } else {

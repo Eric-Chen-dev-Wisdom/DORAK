@@ -65,11 +65,11 @@ class FirebaseService {
     }
   }
 
-  // End the game manually and save match history
+  // End the game manually (match history is saved by game_screen)
   Future<void> endGame(String roomCode) async {
     try {
-      // Save match history before ending
-      await _saveMatchHistoryForRoom(roomCode);
+      // Note: Match history is now saved by game_screen._saveGameDataOnComplete()
+      // to avoid duplicate saves. Don't call _saveMatchHistoryForRoom() here.
 
       await _firestore.collection('rooms').doc(roomCode).update({
         'state': 'GameState.gameComplete',
@@ -80,57 +80,6 @@ class FirebaseService {
     } catch (e) {
       print('❌ Error ending game: $e');
       rethrow;
-    }
-  }
-
-  Future<void> _saveMatchHistoryForRoom(String roomCode) async {
-    try {
-      final roomDoc = await _firestore.collection('rooms').doc(roomCode).get();
-      if (!roomDoc.exists) return;
-
-      final data = roomDoc.data()!;
-      final scores = data['scores'] as Map<String, dynamic>? ?? {};
-      final teamAScore = (scores['teamA'] as num?)?.toInt() ?? 0;
-      final teamBScore = (scores['teamB'] as num?)?.toInt() ?? 0;
-
-      final teamA =
-          (data['teamA'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-      final teamB =
-          (data['teamB'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-
-      final categories =
-          (data['selectedCategories'] as List?)?.cast<Map<String, dynamic>>() ??
-              [];
-      final categoryNames =
-          categories.map((c) => c['name'] as String? ?? '').toList();
-
-      final totalQuestions = (data['preparedQuestions'] as List?)?.length ?? 0;
-      final createdAtStr = data['createdAt'] as String?;
-      final createdAt =
-          createdAtStr != null ? DateTime.tryParse(createdAtStr) : null;
-      final duration = createdAt != null
-          ? DateTime.now().difference(createdAt).inSeconds
-          : 0;
-
-      final winner = teamAScore > teamBScore
-          ? 'A'
-          : (teamBScore > teamAScore ? 'B' : 'TIE');
-
-      await saveMatchHistory({
-        'roomCode': roomCode,
-        'finalScores': {'teamA': teamAScore, 'teamB': teamBScore},
-        'teamAPlayers': teamA.map((u) => u['displayName'] ?? 'Player').toList(),
-        'teamBPlayers': teamB.map((u) => u['displayName'] ?? 'Player').toList(),
-        'categoriesPlayed': categoryNames,
-        'totalQuestions': totalQuestions,
-        'duration': duration,
-        'winner': winner,
-        'hadJackpot': data['isJackpotQuestion'] ?? false,
-      });
-      print('✅ Match history saved for room $roomCode');
-    } catch (e) {
-      print('❌ Error saving match history in _saveMatchHistoryForRoom: $e');
-      // Don't rethrow - game can still end even if history fails
     }
   }
 
@@ -476,12 +425,18 @@ class FirebaseService {
   // =========================================================
   Future<String> saveMatchHistory(Map<String, dynamic> matchData) async {
     try {
-      final doc = await _firestore.collection('matchHistory').add({
+      // Use roomCode as document ID to prevent duplicate entries
+      // If save is called twice for same game, it overwrites instead of creating duplicate
+      final roomCode = matchData['roomCode'] as String? ?? 
+                       DateTime.now().millisecondsSinceEpoch.toString();
+      
+      await _firestore.collection('matchHistory').doc(roomCode).set({
         ...matchData,
         'completedAt': FieldValue.serverTimestamp(),
-      });
-      print('📊 Match history saved: ${doc.id}');
-      return doc.id;
+      }, SetOptions(merge: false)); // Overwrite completely
+      
+      print('📊 Match history saved (upsert): $roomCode');
+      return roomCode;
     } catch (e) {
       print('❌ Error saving match history: $e');
       rethrow;

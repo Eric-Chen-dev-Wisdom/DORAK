@@ -74,9 +74,22 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
+      body: Stack(
+        children: [
+          // Kuwaiti background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.08,
+              child: Image.asset(
+                'assets/images/Kuwaiti.jpg',
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          // Main content
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
               onRefresh: _loadAnalytics,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -112,10 +125,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
                     // Bonus statistics
                     _buildBonusSection(),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
+        ],
+      ),
     );
   }
 

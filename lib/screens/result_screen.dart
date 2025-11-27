@@ -236,7 +236,7 @@ class ResultScreen extends StatelessWidget {
                                   );
                                 },
                                 icon: const Icon(Icons.history, size: 20),
-                                label: const Text('View Match History'),
+                                label: Text(loc.viewMatchHistory),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: const Color(0xFFCE1126),
                                   side: const BorderSide(color: Color(0xFFCE1126)),

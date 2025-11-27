@@ -18,54 +18,70 @@ class MatchHistoryScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
       appBar: AppBar(
-        title: Text(roomCode != null ? 'Room $roomCode History' : 'Match History'),
+        title:
+            Text(roomCode != null ? 'Room $roomCode History' : 'Match History'),
         backgroundColor: AppConstants.primaryRed,
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _loadMatches(fs, roomCode),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error: ${snapshot.error}'),
-            );
-          }
-
-          final matches = snapshot.data ?? [];
-
-          if (matches.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.history, size: 80, color: Colors.grey[300]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No match history yet',
-                    style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Play some games to see history!',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
+      body: Stack(
+        children: [
+          // Kuwaiti background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.08,
+              child: Image.asset(
+                'assets/images/Kuwaiti.jpg',
+                fit: BoxFit.cover,
               ),
-            );
-          }
+            ),
+          ),
+          // Main content
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: _loadMatches(fs, roomCode),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: matches.length,
-            itemBuilder: (context, index) {
-              final match = MatchHistory.fromJson(matches[index]);
-              return _buildMatchCard(context, match, loc);
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text('Error: ${snapshot.error}'),
+                );
+              }
+
+              final matches = snapshot.data ?? [];
+
+              if (matches.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.history, size: 80, color: Colors.grey[300]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No match history yet',
+                        style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Play some games to see history!',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: matches.length,
+                itemBuilder: (context, index) {
+                  final match = MatchHistory.fromJson(matches[index]);
+                  return _buildMatchCard(context, match, loc);
+                },
+              );
             },
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -86,7 +102,7 @@ class MatchHistoryScreen extends StatelessWidget {
     // Debug: Print team data
     print('📋 Match: Team A players: ${match.teamAPlayerNames}');
     print('📋 Match: Team B players: ${match.teamBPlayerNames}');
-    
+
     final isTeamAWinner = match.winner == 'A';
     final isTeamBWinner = match.winner == 'B';
     final isTie = match.winner == 'tie';
@@ -105,7 +121,8 @@ class MatchHistoryScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: AppConstants.primaryRed.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -247,8 +264,8 @@ class MatchHistoryScreen extends StatelessWidget {
                 Expanded(
                   child: _buildPlayerList(
                     'Team A',
-                    match.teamAPlayerNames.isNotEmpty 
-                        ? match.teamAPlayerNames 
+                    match.teamAPlayerNames.isNotEmpty
+                        ? match.teamAPlayerNames
                         : ['No players'],
                     AppConstants.primaryRed,
                   ),
@@ -271,8 +288,7 @@ class MatchHistoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTeamScore(
-      String team, int score, Color color, bool isWinner) {
+  Widget _buildTeamScore(String team, int score, Color color, bool isWinner) {
     return Column(
       children: [
         Text(
@@ -373,5 +389,3 @@ class MatchHistoryScreen extends StatelessWidget {
     return '${secs}s';
   }
 }
-
-

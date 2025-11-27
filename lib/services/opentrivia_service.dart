@@ -146,8 +146,10 @@ class OpenTriviaService {
     return {
       'id':
           'opentrivia_${DateTime.now().millisecondsSinceEpoch}_${question.hashCode}',
-      'question_en': question,
-      'options_en': allAnswers,
+      'question': question, // Base field for compatibility
+      'question_en': question, // Always English from OpenTrivia
+      'options': allAnswers, // Base field for compatibility
+      'options_en': allAnswers, // Always English from OpenTrivia
       'correctAnswer': correctIndex,
       'difficulty': difficulty,
       'source': 'opentrivia',

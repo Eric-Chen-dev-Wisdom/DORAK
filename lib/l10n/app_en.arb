@@ -6,6 +6,7 @@
   "continueGuest": "Play as Guest",
   "createAccount": "Create Account",
   "welcome": "Welcome to DORAK!",
+  "viewMatchHistory": "View Match History",
   "selectCategories": "Select Categories",
   "selectCategoriesHint": "Select 5–8 categories to start the game",
   "difficulty": "Difficulty",

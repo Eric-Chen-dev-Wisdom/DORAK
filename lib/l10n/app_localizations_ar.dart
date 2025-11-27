@@ -27,6 +27,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get welcome => 'مرحبًا بك في دوراك!';
 
   @override
+  String get viewMatchHistory => 'عرض سجل المباريات';
+
+  @override
   String get selectCategories => 'اختر الفئات';
 
   @override

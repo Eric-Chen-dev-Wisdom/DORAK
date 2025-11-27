@@ -332,16 +332,32 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
-  Widget _buildLoading(AppLocalizations l10n) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text(l10n.connectingRoom),
-          ],
+  Widget _buildLoading(AppLocalizations l10n) {
+    return Stack(
+      children: [
+        // Kuwaiti background for loading state
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0.12,
+            child: Image.asset(
+              'assets/images/Kuwaiti.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
         ),
-      );
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(l10n.connectingRoom),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildRoomSelection(AppLocalizations l10n) {
     return SingleChildScrollView(

@@ -282,4 +282,61 @@ class QuestionService {
         .doc(challengeId)
         .delete();
   }
+
+  /// Delete all default questions (q_xxx format) - keeps only imported questions
+  Future<int> deleteAllDefaultQuestions() async {
+    int deletedCount = 0;
+    try {
+      final categories = await _db.collection('categories').get();
+      
+      for (final catDoc in categories.docs) {
+        final challenges = await _db
+            .collection('categories')
+            .doc(catDoc.id)
+            .collection('challenges')
+            .get();
+        
+        for (final challengeDoc in challenges.docs) {
+          // Delete if it's a default question (q_xxx format)
+          if (challengeDoc.id.startsWith('q_')) {
+            await challengeDoc.reference.delete();
+            deletedCount++;
+          }
+        }
+      }
+      
+      print('✅ Deleted $deletedCount default questions');
+      return deletedCount;
+    } catch (e) {
+      print('❌ Error deleting default questions: $e');
+      return deletedCount;
+    }
+  }
+
+  /// Delete ALL questions (default + imported) - complete reset
+  Future<int> deleteAllQuestions() async {
+    int deletedCount = 0;
+    try {
+      final categories = await _db.collection('categories').get();
+      
+      for (final catDoc in categories.docs) {
+        final challenges = await _db
+            .collection('categories')
+            .doc(catDoc.id)
+            .collection('challenges')
+            .get();
+        
+        for (final challengeDoc in challenges.docs) {
+          await challengeDoc.reference.delete();
+          deletedCount++;
+        }
+      }
+      
+      print('✅ Deleted ALL $deletedCount questions');
+      return deletedCount;
+    } catch (e) {
+      print('❌ Error deleting all questions: $e');
+      return deletedCount;
+    }
+  }
 }

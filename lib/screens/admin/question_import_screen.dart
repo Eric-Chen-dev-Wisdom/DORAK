@@ -344,16 +344,29 @@ class _QuestionImportScreenState extends State<QuestionImportScreen> {
   }
 
   Future<void> _saveQuestionToFirestore(Map<String, dynamic> question) async {
+    // Debug: Print what we're saving
+    print('💾 Saving to Firestore: ${question['id']}');
+    print('  question_en: ${question['question_en']}');
+    print('  question_ar: ${question['question_ar']}');
+    
+    // Ensure we have question_en (fallback to question field)
+    final questionEn = question['question_en'] ?? question['question'] ?? '';
+    final questionAr = question['question_ar'] ?? questionEn;
+    final optionsEn = question['options_en'] ?? question['options'] ?? [];
+    final optionsAr = question['options_ar'] ?? optionsEn;
+    
     // Save directly to Firestore with correct types
     // correctAnswer is stored as int (index) in Firestore
     await _questionService.upsertChallengeData(
       _selectedCategoryId,
       question['id'],
       {
-        'question_en': question['question_en'],
-        'question_ar': question['question_ar'],
-        'options_en': question['options_en'],
-        'options_ar': question['options_ar'],
+        'question': questionEn, // Base field
+        'question_en': questionEn,
+        'question_ar': questionAr,
+        'options': optionsEn, // Base field
+        'options_en': optionsEn,
+        'options_ar': optionsAr,
         'correctAnswer': question['correctAnswer'], // int (index)
         'difficulty': question['difficulty'],
         'source': 'opentrivia',

@@ -27,6 +27,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get welcome => 'Welcome to DORAK!';
 
   @override
+  String get viewMatchHistory => 'View Match History';
+
+  @override
   String get selectCategories => 'Select Categories';
 
   @override

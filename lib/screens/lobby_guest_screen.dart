@@ -277,15 +277,29 @@ class _LobbyGuestScreenState extends State<LobbyGuestScreen> {
   }
 
   Widget _buildLoading() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text('Connecting to room...'),
-        ],
-      ),
+    return Stack(
+      children: [
+        // Kuwaiti background for loading state
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0.12,
+            child: Image.asset(
+              'assets/images/Kuwaiti.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Connecting to room...'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

@@ -17,13 +17,16 @@ DORAK is a family-oriented interactive mobile game designed to bring laughter, c
 ### Key Features
 
 - 🎮 **2-20 Players** - Individual or team gameplay
-- 🌍 **Bilingual** - Full English & Arabic support
+- 🌍 **Bilingual** - Full English & Arabic support with dynamic translations
 - 🏆 **Smart Scoring** - Difficulty-based points with bonuses
 - 🎁 **Jackpot Mode** - High-risk, high-reward questions
 - ⚡ **Power Cards** - Game-changing abilities
 - 💪 **Physical Challenges** - Fun action-based tasks
-- 📊 **Match History** - Track and review past games
-- 🎨 **Kuwaiti Theme** - Red, Green, Black, White colors
+- 📊 **Analytics Dashboard** - Track game statistics and trends
+- 📖 **Match History** - Review past games with detailed results
+- 🌐 **OpenTrivia Integration** - Import 1000+ questions from OpenTrivia DB
+- 🤖 **Auto-Translation** - Automatic Arabic translation for imported questions
+- 🎨 **Kuwaiti Theme** - Red, Green, Black, White colors with cultural backgrounds
 
 ---
 
@@ -35,7 +38,15 @@ DORAK is a family-oriented interactive mobile game designed to bring laughter, c
 - **Teams**: Choose Team A (Red) or Team B (Green)
 
 ### 2. Select Categories
-- Choose 5-8 categories
+- Choose 5-8 categories from:
+  - 📚 General Knowledge
+  - 👨‍👩‍👧‍👦 Family Life
+  - 🕌 Gulf Culture
+  - 🎬 Movies & TV
+  - 🎵 Music
+  - 😂 Funny Challenges
+  - 👶 Kids Corner
+  - ⚡ Quick Thinking
 - Set difficulty (Easy/Medium/Hard or All)
 - Set number of questions (5-20)
 
@@ -130,6 +141,11 @@ flutter build apk --release
 - `audioplayers` - Audio playback
 - `share_plus` - Room code sharing
 - `intl` - Internationalization
+- `http` - API requests for translation and question import
+
+### External APIs
+- **OpenTrivia DB** - Free trivia question database (https://opentdb.com)
+- **MyMemory Translation API** - Free translation service for Arabic localization
 
 ---
 
@@ -138,19 +154,43 @@ flutter build apk --release
 ```
 DORAK/
 ├── lib/
-│   ├── models/          # Data models
-│   ├── screens/         # UI screens
-│   ├── services/        # Business logic
-│   ├── widgets/         # Reusable components
-│   ├── utils/           # Utilities & constants
-│   ├── l10n/            # Localization files
-│   └── main.dart        # App entry point
+│   ├── models/                    # Data models
+│   │   ├── game_room.dart
+│   │   ├── user_model.dart
+│   │   ├── category.dart
+│   │   └── analytics_model.dart
+│   ├── screens/                   # UI screens
+│   │   ├── home_screen.dart
+│   │   ├── lobby_screen.dart
+│   │   ├── game_screen.dart
+│   │   ├── result_screen.dart
+│   │   ├── match_history_screen.dart
+│   │   └── admin/
+│   │       ├── admin_dashboard.dart
+│   │       ├── analytics_screen.dart
+│   │       └── question_import_screen.dart
+│   ├── services/                  # Business logic
+│   │   ├── firebase_service.dart
+│   │   ├── lobby_service.dart
+│   │   ├── question_service.dart
+│   │   ├── analytics_service.dart
+│   │   ├── opentrivia_service.dart
+│   │   └── translation_service.dart
+│   ├── widgets/                   # Reusable components
+│   ├── utils/                     # Utilities & constants
+│   │   └── arb_loader.dart
+│   ├── l10n/                      # Localization files
+│   │   ├── app_en.arb             # English (1260+ keys)
+│   │   └── app_ar.arb             # Arabic (1260+ keys)
+│   └── main.dart                  # App entry point
 ├── assets/
-│   ├── images/          # Images & icons
-│   └── audio/           # Sound files
-├── android/             # Android config
-├── ios/                 # iOS config
-└── firebase/            # Firebase config
+│   ├── images/                    # Images & icons
+│   │   ├── saudi.jpg              # Background image
+│   │   └── Kuwaiti.jpg            # Background image
+│   └── audio/                     # Sound files
+├── android/                       # Android config
+├── ios/                           # iOS config
+└── firebase/                      # Firebase config
 ```
 
 ---
@@ -217,28 +257,96 @@ DORAK/
 ## 📊 Admin Dashboard
 
 ### Features *(For Game Owner)*
-- Manage questions
-- Edit categories
-- View analytics
-- Monitor active rooms
-- Manage users
+- **Question Management** 
+  - Import questions from OpenTrivia DB
+  - Automatic Arabic translation with MyMemory API
+  - Option to skip translation for testing
+  - Preview questions before saving
+  - Batch import (10-50 questions per category)
+- **Analytics Dashboard**
+  - Total games played
+  - Average game duration
+  - Category usage statistics
+  - Difficulty breakdown
+  - Power card usage tracking
+- **Match History**
+  - View all past games
+  - Detailed team scores
+  - Player participation records
+  - Category and difficulty analysis
+- **Category Management**
+  - 8 built-in categories
+  - 400+ default questions (English/Arabic)
+  - Category-specific question pools
 
 ### Access
 - Email: jalsayrafi@icloud.com
 - Full admin privileges
+- Access via hamburger menu → "Admin Dashboard"
+
+---
+
+## 📥 Importing Questions
+
+### OpenTrivia DB Import
+
+The admin dashboard includes a powerful question import tool:
+
+1. **Access**: Admin Dashboard → "Import Questions"
+2. **Select Category**: Choose from 8 available categories
+3. **Set Parameters**:
+   - Number of questions (10-50)
+   - Difficulty level (Easy/Medium/Hard/All)
+4. **Translation Options**:
+   - ✅ Auto-translate to Arabic (default)
+   - ⏭️ Skip translation (English only)
+5. **Preview**: Review questions before saving
+6. **Import**: Batch save to Firestore
+
+### Question Format
+
+Questions are stored with:
+- `question_en` - English text
+- `question_ar` - Arabic translation
+- `options_en` - English answer options
+- `options_ar` - Arabic answer options
+- `correctAnswer` - Index of correct option (0-3)
+- `difficulty` - Easy/Medium/Hard
+- `categoryId` - Category reference
+
+### Translation Service
+
+- Uses MyMemory Translation API (free tier)
+- Automatic retry on timeout
+- Fallback to English if translation fails
+- Rate limit: 60 requests per 10 seconds
+- Can be skipped for testing
 
 ---
 
 ## 🌐 Localization
 
 ### Supported Languages
-- 🇬🇧 English (EN)
-- 🇸🇦 Arabic (AR)
+- 🇬🇧 **English (EN)** - Full UI and 400+ questions
+- 🇸🇦 **Arabic (AR)** - Full UI and 400+ questions
+
+### Multi-Language Gameplay
+- Each player can select their own language
+- Questions displayed in player's chosen language
+- English and Arabic players can play together seamlessly
+- Real-time translation using ARB files
 
 ### RTL Support
-- Automatic layout direction
-- Localized strings
-- Culture-appropriate UI
+- Automatic layout direction for Arabic
+- Mirrored UI components
+- Culture-appropriate text formatting
+- Localized numbers and dates
+
+### Translation System
+- **Default Questions**: 400+ questions in both EN/AR via `.arb` files
+- **Imported Questions**: Auto-translated via MyMemory API
+- **Fallback Mechanism**: English text if translation unavailable
+- **Dynamic Loading**: Questions loaded based on player's device language
 
 ---
 
@@ -284,22 +392,44 @@ flutter build ios --release
 
 ## 🐛 Known Issues & Limitations
 
-### v1.0 Limitations
+### Current Limitations
 - Physical sensors require real device (not emulator)
 - Karaoke audio files not included (placeholder ready)
 - iOS build requires macOS environment
+- Translation API has rate limits (60 requests per 10 seconds)
+- OpenTrivia API may timeout for large imports
 
-### Future Enhancements (Phase 2)
-- OpenTrivia DB integration (1000+ questions)
-- Auto-translation API
+### Recent Fixes
+- ✅ Fixed duplicate match history entries (using roomCode as unique ID)
+- ✅ Arabic question translation working for both default and imported questions
+- ✅ Multi-language support in multiplayer (different players can use different languages)
+- ✅ Background images for transition states and analytics screens
+
+### Future Enhancements
 - Video clips for movie questions
-- Advanced analytics
 - Dual-host system
 - Family leaderboard
+- Offline mode with cached questions
+- Custom question creation by users
+- Export/import question sets
 
 ---
 
 ## 📝 Changelog
+
+### v1.1.0 (November 27, 2025) - Major Update
+- ✅ **OpenTrivia DB Integration** - Import 1000+ questions from external API
+- ✅ **Auto-Translation Service** - MyMemory API for Arabic translations
+- ✅ **Analytics Dashboard** - Comprehensive game statistics and insights
+- ✅ **Enhanced Match History** - Fixed duplicate entries, improved display
+- ✅ **Multi-Language Support** - Players can use different languages in same game
+- ✅ **Background Images** - Kuwaiti-themed backgrounds for screens
+- ✅ **Question Import Screen** - Admin tool to batch import and translate questions
+- ✅ **ARB Localization System** - Dynamic question translation from .arb files
+- ✅ **Improved Error Handling** - Better timeout and fallback mechanisms
+- 🔧 Fixed duplicate match history saves
+- 🔧 Fixed Arabic question translation in multiplayer
+- 🔧 Optimized question loading and preparation
 
 ### v1.0.0 (November 19, 2025) - Initial Release
 - ✅ Core game loop (lobby → game → results)
@@ -326,6 +456,38 @@ flutter build ios --release
 
 ---
 
+## 🛠️ Troubleshooting
+
+### Common Issues
+
+**Match History Shows Duplicates**
+- Old duplicates may exist in database
+- New games will save correctly (using unique room code)
+- Clean up old entries via Firebase Console
+
+**Arabic Questions Not Showing**
+- Ensure questions have been translated (check import settings)
+- Start a new game after importing questions
+- Check device language settings
+
+**Translation Timeout**
+- MyMemory API has rate limits
+- Use "Skip Translation" option for testing
+- Import fewer questions at once (10-20)
+
+**Questions Not Loading**
+- Check internet connection
+- Verify Firestore security rules
+- Ensure category has questions imported
+
+**OpenTrivia Import Fails**
+- Check internet connection
+- API may be temporarily down
+- Try with fewer questions (10 instead of 50)
+- Switch to different difficulty level
+
+---
+
 ## 🤝 Support
 
 ### Issues & Bug Reports
@@ -333,6 +495,10 @@ Contact: jalsayrafi@icloud.com
 
 ### Feature Requests
 We're actively developing! Send feedback for future updates.
+
+### Documentation
+- `QUESTION_IMPORT_FLOW.md` - Detailed import guide
+- `DELETE_DEFAULTS_GUIDE.md` - Managing default questions
 
 ---
 
@@ -361,6 +527,20 @@ We're actively developing! Send feedback for future updates.
 ## 🎮 Let's Play!
 
 DORAK brings families and friends together through fun, competition, and laughter.
+
+### What Makes DORAK Special?
+
+✨ **True Bilingual Experience** - Not just translated UI, but fully localized questions in both English and Arabic
+
+🌍 **Ever-Growing Content** - Import thousands of questions from OpenTrivia DB with one click
+
+👨‍👩‍👧‍👦 **Family-Friendly** - Suitable for ages 6-99 with appropriate content filters
+
+🎯 **Gulf Culture Focus** - Questions and themes reflecting Kuwaiti and Gulf traditions
+
+📊 **Data-Driven** - Analytics dashboard to understand gameplay patterns
+
+🔄 **Real-Time Sync** - Firebase-powered instant updates across all devices
 
 **Download now and start your family game night!** 🎲
 
