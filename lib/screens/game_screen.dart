@@ -353,11 +353,18 @@ class _GameScreenState extends State<GameScreen> {
 
   // Add real-time votes listener
   void _startVotesListener() {
+    // Listen to votes for host control panel (even though game screen doesn't display them)
     _votesSub =
         _firebaseService.getVotesStream(widget.room.code).listen((votes) {
       if (mounted) {
         setState(() {
           _currentVotes = votes;
+
+          // Debug: Log vote updates
+          final teamAVotes = votes['teamAVotes'] as Map<String, dynamic>?;
+          final teamBVotes = votes['teamBVotes'] as Map<String, dynamic>?;
+          print(
+              '🗳️ Votes updated: Team A = ${teamAVotes?.length ?? 0}, Team B = ${teamBVotes?.length ?? 0}');
         });
       }
     });
@@ -385,9 +392,13 @@ class _GameScreenState extends State<GameScreen> {
         ? 'A'
         : (_currentRoom.teamB.any((u) => u.id == widget.user.id) ? 'B' : 'A');
 
+    print(
+        '🗳️ Submitting vote: User=${widget.user.displayName}, Team=$userTeam, Answer=$_selectedAnswerIndex');
+
     await _firebaseService.submitVote(
         _currentRoom.code, userTeam, widget.user.id, _selectedAnswerIndex);
 
+    print('✅ Vote submitted successfully');
     _showVoteSubmitted();
   }
 
@@ -979,19 +990,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  // Helper method to get real-time vote counts
-  int get _totalVotesA {
-    final teamAVotes = _currentVotes['teamAVotes'];
-    if (teamAVotes is Map) return teamAVotes.length;
-    return 0;
-  }
-
-  int get _totalVotesB {
-    final teamBVotes = _currentVotes['teamBVotes'];
-    if (teamBVotes is Map) return teamBVotes.length;
-    return 0;
-  }
-
   // Show player result when synced from Firebase (for non-host players)
   Future<void> _showPlayerResultFromSync() async {
     if (_questions.isEmpty || _currentQuestionIndex >= _questions.length)
@@ -1364,7 +1362,8 @@ class _GameScreenState extends State<GameScreen> {
                         const SizedBox(height: 20),
                         // Show vote button for ALL players including host
                         _buildVoteButton(context),
-                        if (widget.isHost) _buildVotesDisplay(context),
+                        // Note: Voting status removed from here
+                        // Only host control panel shows voting status
                       ],
                       const SizedBox(height: 20),
                     ],
@@ -1412,6 +1411,7 @@ class _GameScreenState extends State<GameScreen> {
           height: height,
           child: HostControlPanel(
             room: _currentRoom,
+            currentVotes: _currentVotes,
             onPointsAdjust: _handlePointsAdjust,
             onTimerAdjust: _handleTimerAdjust,
             onNextQuestion: _handleNextQuestion,
@@ -1955,60 +1955,6 @@ class _GameScreenState extends State<GameScreen> {
         ),
         child: Text(loc.submitVote,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-
-  Widget _buildVotesDisplay(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
-    return Card(
-      color: const Color(0xFFF8F9FA),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Text(loc.teamVotes,
-                style:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Column(children: [
-                  Text(loc.teamA,
-                      style: const TextStyle(
-                          color: Color(0xFFCE1126),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12)),
-                  Text(loc.votesCount(_totalVotesA),
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
-                ]),
-                Column(children: [
-                  Text(loc.teamB,
-                      style: const TextStyle(
-                          color: Color(0xFF007A3D),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12)),
-                  Text(loc.votesCount(_totalVotesB),
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
-                ]),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.room.votingInProgress
-                  ? loc.votingInProgress
-                  : loc.waitingForHost,
-              style: TextStyle(
-                fontSize: 12,
-                color:
-                    widget.room.votingInProgress ? Colors.green : Colors.grey,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

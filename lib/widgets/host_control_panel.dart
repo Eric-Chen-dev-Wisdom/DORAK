@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HostControlPanel extends StatefulWidget {
   final GameRoom room;
+  final Map<String, dynamic> currentVotes;
   final Function(int) onPointsAdjust;
   final void Function(int seconds, bool running) onTimerAdjust;
   final Function() onNextQuestion;
@@ -21,6 +22,7 @@ class HostControlPanel extends StatefulWidget {
   const HostControlPanel({
     super.key,
     required this.room,
+    required this.currentVotes,
     required this.onPointsAdjust,
     required this.onTimerAdjust,
     required this.onNextQuestion,
@@ -887,8 +889,12 @@ class _HostControlPanelState extends State<HostControlPanel> {
 
   Widget _buildVotingSection() {
     final l10n = AppLocalizations.of(context)!;
-    final totalVotesA = _currentRoom.getTotalVotesForTeam('A');
-    final totalVotesB = _currentRoom.getTotalVotesForTeam('B');
+    
+    // Get vote counts from currentVotes passed from game_screen
+    final teamAVotes = widget.currentVotes['teamAVotes'] as Map<String, dynamic>? ?? {};
+    final teamBVotes = widget.currentVotes['teamBVotes'] as Map<String, dynamic>? ?? {};
+    final totalVotesA = teamAVotes.length;
+    final totalVotesB = teamBVotes.length;
 
     return Card(
       color: const Color(0xFFF8F9FA),

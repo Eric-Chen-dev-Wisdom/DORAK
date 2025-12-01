@@ -31,6 +31,25 @@ class _ChatWidgetState extends State<ChatWidget> {
     _chatController.dispose();
     super.dispose();
   }
+  
+  // Get initials from name (at least 2 characters)
+  String _getNameInitials(String? name) {
+    if (name == null || name.isEmpty) return '?';
+    
+    // Split name by spaces
+    final parts = name.trim().split(' ');
+    
+    if (parts.length >= 2) {
+      // First name + Last name initials (e.g., "John Doe" → "JD")
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (name.length >= 2) {
+      // First 2 characters (e.g., "Eric" → "Er")
+      return name.substring(0, 2).toUpperCase();
+    } else {
+      // Single character name
+      return name[0].toUpperCase();
+    }
+  }
 
   void _sendChatMessage() {
     final text = _chatController.text.trim();
@@ -81,14 +100,11 @@ class _ChatWidgetState extends State<ChatWidget> {
         children: [
           if (!isMe)
             CircleAvatar(
-              radius: 12,
+              radius: 16,
               backgroundColor: Colors.grey[300],
               child: Text(
-                (message['senderName'] != null &&
-                        message['senderName'].isNotEmpty)
-                    ? message['senderName'][0]
-                    : '?',
-                style: TextStyle(fontSize: 10, color: Colors.black),
+                _getNameInitials(message['senderName']),
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black),
               ),
             ),
           Expanded(
@@ -106,10 +122,12 @@ class _ChatWidgetState extends State<ChatWidget> {
                     Text(
                       message['senderName'] ?? widget.l10n.unknownUser,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey[600],
+                        color: Colors.grey[800],
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   Text(
                     message['text'] ?? '',
