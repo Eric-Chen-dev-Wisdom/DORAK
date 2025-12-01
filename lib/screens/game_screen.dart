@@ -56,6 +56,7 @@ class _GameScreenState extends State<GameScreen> {
   // Add real-time vote tracking
   Map<String, dynamic> _currentVotes = {'teamAVotes': {}, 'teamBVotes': {}};
   StreamSubscription? _votesSub;
+  int? _lastRevealedQuestionIndex; // Track which question was revealed
 
 // Guard against redundant timer updates
   int? _lastTimerStampMs;
@@ -69,12 +70,14 @@ class _GameScreenState extends State<GameScreen> {
       print('🔄 Loading ARB translations...');
       final lang = Localizations.localeOf(context).languageCode;
       print('  Language: $lang');
-      
-      _arbCache = lang == 'ar' ? await ArbLoader.loadArabic() : await ArbLoader.loadEnglish();
-      
+
+      _arbCache = lang == 'ar'
+          ? await ArbLoader.loadArabic()
+          : await ArbLoader.loadEnglish();
+
       print('✅ Loaded ${_arbCache.length} ARB translations for: $lang');
       print('  Sample keys: ${_arbCache.keys.take(5).toList()}');
-      
+
       // Force UI update
       if (mounted) {
         setState(() {});
@@ -194,7 +197,7 @@ class _GameScreenState extends State<GameScreen> {
     _displayPointsA = _currentRoom.teamAPoints;
     _displayPointsB = _currentRoom.teamBPoints;
     _ackPowerCards.addAll(_currentRoom.usedPowerCards);
-    
+
     // Reset save flags for new game
     _saveInProgress = false;
     _gameDataSaved = false;
@@ -298,6 +301,20 @@ class _GameScreenState extends State<GameScreen> {
           if (_ackPowerCards.contains(cardId)) continue;
           _ackPowerCards.add(cardId);
           _showPowerCardSnack(cardId);
+        }
+
+        // Check if answer was revealed (for non-host players)
+        final revealedIndex = (data['lastRevealedQuestion'] as num?)?.toInt();
+        print(
+            '🔔 Checking reveal: revealedIndex=$revealedIndex, last=$_lastRevealedQuestionIndex, isHost=${widget.isHost}');
+
+        if (revealedIndex != null &&
+            revealedIndex != _lastRevealedQuestionIndex &&
+            !widget.isHost) {
+          // Answer was just revealed, show this player's result
+          print('✅ Answer revealed detected! Showing player result...');
+          _lastRevealedQuestionIndex = revealedIndex;
+          _showPlayerResultFromSync();
         }
       }
       if (state == 'GameState.gameComplete' &&
@@ -486,7 +503,7 @@ class _GameScreenState extends State<GameScreen> {
 
   // Static flag to track if save is in progress (prevents race conditions)
   static bool _saveInProgress = false;
-  
+
   // Extract game data saving to reusable method
   Future<void> _saveGameDataOnComplete() async {
     // Extra safety: check both flags to prevent any race conditions
@@ -495,7 +512,7 @@ class _GameScreenState extends State<GameScreen> {
       return;
     }
     _saveInProgress = true;
-    
+
     // Calculate game duration
     final duration =
         DateTime.now().difference(_currentRoom.createdAt).inSeconds;
@@ -661,6 +678,18 @@ class _GameScreenState extends State<GameScreen> {
   void _handleRevealAnswer() async {
     if (_questions.isEmpty) return;
 
+    // Mark that this question was revealed (for syncing to other players)
+    try {
+      await _firebaseService.updateRoomData(widget.room.code, {
+        'lastRevealedQuestion': _currentQuestionIndex,
+        'lastRevealedAt': FieldValue.serverTimestamp(),
+      });
+      print(
+          '✅ Reveal marker saved to Firebase: question $_currentQuestionIndex');
+    } catch (e) {
+      print('❌ Failed to save reveal marker: $e');
+    }
+
     print('🎯 === REVEAL ANSWER START ===');
     print(
         '🎯 Current room scores before calculation: A=${_currentRoom.teamAPoints}, B=${_currentRoom.teamBPoints}');
@@ -699,6 +728,50 @@ class _GameScreenState extends State<GameScreen> {
     // Count wrong answers per team
     int wrongA = teamAVotes.length - correctA;
     int wrongB = teamBVotes.length - correctB;
+
+    // Check if current player voted and if they were correct
+    final currentUserId = widget.user.id;
+    final currentUserTeam = _currentRoom.teamA.any((u) => u.id == currentUserId)
+        ? 'A'
+        : (_currentRoom.teamB.any((u) => u.id == currentUserId) ? 'B' : null);
+
+    int? currentUserVote;
+    bool? currentUserCorrect;
+
+    if (currentUserTeam == 'A' && teamAVotes.containsKey(currentUserId)) {
+      currentUserVote = teamAVotes[currentUserId];
+      currentUserCorrect = currentUserVote == correctAnswerIndex;
+    } else if (currentUserTeam == 'B' &&
+        teamBVotes.containsKey(currentUserId)) {
+      currentUserVote = teamBVotes[currentUserId];
+      currentUserCorrect = currentUserVote == correctAnswerIndex;
+    }
+
+    // Show detailed voting results (host sees full breakdown)
+    if (widget.isHost) {
+      _showVotingResults(
+        teamAVotes: teamAVotes.length,
+        teamBVotes: teamBVotes.length,
+        correctA: correctA,
+        correctB: correctB,
+        wrongA: wrongA,
+        wrongB: wrongB,
+        basePoints: basePoints,
+      );
+    }
+
+    // Show individual result to this player
+    if (currentUserCorrect != null) {
+      Future.delayed(Duration(milliseconds: widget.isHost ? 100 : 0), () {
+        _showPlayerResult(
+          isCorrect: currentUserCorrect!,
+          basePoints: basePoints,
+          isJackpot: isJackpot,
+          hasDoublePoints:
+              _currentRoom.usedPowerCards.contains('double_points'),
+        );
+      });
+    }
 
     // Calculate base points for correct answers
     int earnedA = correctA * basePoints;
@@ -919,29 +992,325 @@ class _GameScreenState extends State<GameScreen> {
     return 0;
   }
 
+  // Show player result when synced from Firebase (for non-host players)
+  Future<void> _showPlayerResultFromSync() async {
+    if (_questions.isEmpty || _currentQuestionIndex >= _questions.length)
+      return;
+
+    final currentQuestion = _questions[_currentQuestionIndex];
+    final correctAnswerIndex = (currentQuestion['correctAnswer'] as int?) ?? -1;
+    final isJackpot = _currentRoom.isJackpotQuestion;
+    final hasDoublePoints =
+        _currentRoom.usedPowerCards.contains('double_points');
+    final basePoints = isJackpot
+        ? (_currentRoom.jackpotPoints ?? 100)
+        : _getPointsForDifficulty(
+            currentQuestion['difficulty'] as String? ?? 'easy');
+
+    // Get votes and check if this player voted
+    final votes = await _firebaseService.getVotes(widget.room.code);
+    final teamAVotes = votes['teamAVotes'] as Map<String, dynamic>;
+    final teamBVotes = votes['teamBVotes'] as Map<String, dynamic>;
+
+    final currentUserId = widget.user.id;
+    int? userVote;
+
+    if (teamAVotes.containsKey(currentUserId)) {
+      userVote = teamAVotes[currentUserId];
+    } else if (teamBVotes.containsKey(currentUserId)) {
+      userVote = teamBVotes[currentUserId];
+    }
+
+    if (userVote != null) {
+      final isCorrect = userVote == correctAnswerIndex;
+      _showPlayerResult(
+        isCorrect: isCorrect,
+        basePoints: basePoints,
+        isJackpot: isJackpot,
+        hasDoublePoints: hasDoublePoints,
+      );
+    }
+  }
+
+  // Show individual player result notification
+  void _showPlayerResult({
+    required bool isCorrect,
+    required int basePoints,
+    required bool isJackpot,
+    required bool hasDoublePoints,
+  }) {
+    final loc = AppLocalizations.of(context)!;
+
+    int points = basePoints;
+    if (hasDoublePoints) points *= 2;
+
+    final title = isCorrect
+        ? (isJackpot ? '🎁 JACKPOT!' : '✅ ${loc.correct}')
+        : '❌ Wrong Answer';
+
+    final message = isCorrect
+        ? 'Your team earned +$points pts!'
+        : 'Your team lost -${_getPenaltyPoints(basePoints)} pts';
+
+    final color = isCorrect ? Colors.green : Colors.red;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        backgroundColor: color.withOpacity(0.95),
+        title: Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isCorrect ? Icons.check_circle : Icons.cancel,
+              size: 80,
+              color: Colors.white,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+              ),
+            ),
+            if (hasDoublePoints && isCorrect) ...[
+              const SizedBox(height: 8),
+              const Text(
+                '🎊 DOUBLE POINTS ACTIVE!',
+                style: TextStyle(
+                  color: Colors.yellow,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
+            child: const Text('OK', style: TextStyle(fontSize: 16)),
+          ),
+        ],
+      ),
+    );
+
+    // Auto-close after 3 seconds
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    });
+  }
+
+  int _getPenaltyPoints(int basePoints) {
+    if (basePoints == 100) return 100; // Easy
+    if (basePoints == 250) return 150; // Medium
+    if (basePoints == 400) return 200; // Hard
+    return basePoints; // Jackpot uses same as basePoints
+  }
+
+  // Show detailed voting results dialog (for host)
+  void _showVotingResults({
+    required int teamAVotes,
+    required int teamBVotes,
+    required int correctA,
+    required int correctB,
+    required int wrongA,
+    required int wrongB,
+    required int basePoints,
+  }) {
+    final loc = AppLocalizations.of(context)!;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('📊 Voting Results', textAlign: TextAlign.center),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Team A Results
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppConstants.primaryRed.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    '${loc.teamA} Results',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppConstants.primaryRed,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          const Text('Total Votes',
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.grey)),
+                          Text('$teamAVotes',
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text('✅ Correct',
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.green)),
+                          Text('$correctA',
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text('❌ Wrong',
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.red)),
+                          Text('$wrongA',
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (correctA > 0) ...[
+                    const SizedBox(height: 8),
+                    Text('+${correctA * basePoints} pts',
+                        style: const TextStyle(
+                            color: Colors.green, fontWeight: FontWeight.bold)),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Team B Results
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppConstants.primaryGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    '${loc.teamB} Results',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppConstants.primaryGreen,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          const Text('Total Votes',
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.grey)),
+                          Text('$teamBVotes',
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text('✅ Correct',
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.green)),
+                          Text('$correctB',
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text('❌ Wrong',
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.red)),
+                          Text('$wrongB',
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (correctB > 0) ...[
+                    const SizedBox(height: 8),
+                    Text('+${correctB * basePoints} pts',
+                        style: const TextStyle(
+                            color: Colors.green, fontWeight: FontWeight.bold)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
 
-      if (_loadingQuestions) {
-        return Scaffold(
-          body: Stack(
-            children: [
-              // Kuwaiti background for loading state
-              Positioned.fill(
-                child: Opacity(
-                  opacity: 0.12,
-                  child: Image.asset(
-                    'assets/images/Kuwaiti.jpg',
-                    fit: BoxFit.cover,
-                  ),
+    if (_loadingQuestions) {
+      return Scaffold(
+        body: Stack(
+          children: [
+            // Kuwaiti background for loading state
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0.12,
+                child: Image.asset(
+                  'assets/images/Kuwaiti.jpg',
+                  fit: BoxFit.cover,
                 ),
               ),
-              const Center(child: CircularProgressIndicator()),
-            ],
-          ),
-        );
-      }
+            ),
+            const Center(child: CircularProgressIndicator()),
+          ],
+        ),
+      );
+    }
 
     final currentQuestion = _questions[_currentQuestionIndex];
 
@@ -1260,14 +1629,14 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                 ],
               ),
-            const SizedBox(height: 12),
-            Text(
-              _getLocalizedQuestion(question),
-              style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold, height: 1.3),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+              Text(
+                _getLocalizedQuestion(question),
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold, height: 1.3),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
               _buildCategoryProgress(question),
               const SizedBox(height: 8),
               Text(
@@ -1370,7 +1739,7 @@ class _GameScreenState extends State<GameScreen> {
   String _getLocalizedQuestion(Map<String, dynamic> question) {
     final questionId = question['id'] as String?;
     final lang = Localizations.localeOf(context).languageCode;
-    
+
     print('🔍 _getLocalizedQuestion called');
     print('  Question ID: $questionId');
     print('  Language: $lang');
@@ -1378,33 +1747,35 @@ class _GameScreenState extends State<GameScreen> {
     print('  question_ar: ${question['question_ar']}');
     print('  question_en: ${question['question_en']}');
     print('  question: ${question['question']}');
-    
+
     // For default questions (q_gk_001 format), use ARB
     if (questionId != null && questionId.startsWith('q_')) {
       final key = '${questionId}_text';
       final arbText = _arbCache[key];
-      
+
       if (arbText != null && arbText.toString().isNotEmpty) {
         print('  ✅ Using ARB translation!');
         return arbText.toString();
       }
     }
-    
+
     // For OpenTrivia/imported questions - use stored translations
     if (lang == 'ar') {
       // Try Arabic first
-      if (question['question_ar'] != null && question['question_ar'].toString().isNotEmpty) {
+      if (question['question_ar'] != null &&
+          question['question_ar'].toString().isNotEmpty) {
         print('  ✅ Using stored Arabic translation');
         return question['question_ar'].toString();
       }
     }
-    
+
     // Try English
-    if (question['question_en'] != null && question['question_en'].toString().isNotEmpty) {
+    if (question['question_en'] != null &&
+        question['question_en'].toString().isNotEmpty) {
       print('  ✅ Using stored English translation');
       return question['question_en'].toString();
     }
-    
+
     // Final fallback to 'question' field
     print('  ⚠️ Using fallback question field');
     return question['question']?.toString() ?? '';
@@ -1412,7 +1783,7 @@ class _GameScreenState extends State<GameScreen> {
 
   List<String> _getLocalizedOptions(Map<String, dynamic> question) {
     final questionId = question['id'] as String?;
-    
+
     // For default questions (q_gk_001 format), use ARB
     if (questionId != null && questionId.startsWith('q_')) {
       final options = <String>[];
@@ -1429,7 +1800,7 @@ class _GameScreenState extends State<GameScreen> {
         return options; // ✅ From ARB!
       }
     }
-    
+
     // For imported questions, use stored translations
     final lang = Localizations.localeOf(context).languageCode;
     if (lang == 'ar' && question['options_ar'] != null) {
@@ -1438,7 +1809,7 @@ class _GameScreenState extends State<GameScreen> {
     if (question['options_en'] != null) {
       return List<String>.from(question['options_en']);
     }
-    
+
     // Final fallback
     return List<String>.from(question['options'] ?? []);
   }

@@ -242,6 +242,17 @@ class FirebaseService {
     }
   }
 
+  Future<void> updateRoomData(
+      String roomCode, Map<String, dynamic> data) async {
+    try {
+      await _firestore.collection('rooms').doc(roomCode).update(data);
+      print('✅ Room $roomCode updated with ${data.keys.length} fields');
+    } catch (e) {
+      print('❌ Error updating room data: $e');
+      rethrow;
+    }
+  }
+
   // =========================================================
   // VOTING SYSTEM
   // =========================================================
@@ -427,14 +438,14 @@ class FirebaseService {
     try {
       // Use roomCode as document ID to prevent duplicate entries
       // If save is called twice for same game, it overwrites instead of creating duplicate
-      final roomCode = matchData['roomCode'] as String? ?? 
-                       DateTime.now().millisecondsSinceEpoch.toString();
-      
+      final roomCode = matchData['roomCode'] as String? ??
+          DateTime.now().millisecondsSinceEpoch.toString();
+
       await _firestore.collection('matchHistory').doc(roomCode).set({
         ...matchData,
         'completedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: false)); // Overwrite completely
-      
+
       print('📊 Match history saved (upsert): $roomCode');
       return roomCode;
     } catch (e) {
