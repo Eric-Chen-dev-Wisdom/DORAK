@@ -3,23 +3,21 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>802364174285-27t14teovshc8lcqmcsm556s1ufj1ek6.apps.googleusercontent.com</string>
+	<string>868610178836-i47jhk2bj68an14g42nai72a2iq145f7.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.802364174285-27t14teovshc8lcqmcsm556s1ufj1ek6</string>
-	<key>ANDROID_CLIENT_ID</key>
-	<string>802364174285-qc6ig6pko4usbj1r2d3nlfkqp39ctcsi.apps.googleusercontent.com</string>
+	<string>com.googleusercontent.apps.868610178836-i47jhk2bj68an14g42nai72a2iq145f7</string>
 	<key>API_KEY</key>
-	<string>AIzaSyBwWOoYW4mW1TVzZ9DBuRXtuu8kw5EoEIE</string>
+	<string>AIzaSyB1C5m1TQB1O6wv2Sa0pK2NddJJk2kg1HI</string>
 	<key>GCM_SENDER_ID</key>
-	<string>802364174285</string>
+	<string>868610178836</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.dorak.test</string>
 	<key>PROJECT_ID</key>
-	<string>dorak-5a4cb</string>
+	<string>dorak-kuwait</string>
 	<key>STORAGE_BUCKET</key>
-	<string>dorak-5a4cb.firebasestorage.app</string>
+	<string>dorak-kuwait.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -31,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:802364174285:ios:25dafec7e4567b228b9e84</string>
+	<string>1:868610178836:ios:39a24758b3fa4ef427cc01</string>
 </dict>
 </plist>

@@ -353,10 +353,6 @@ class _GameScreenState extends State<GameScreen> {
 
   // Add real-time votes listener
   void _startVotesListener() {
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 0aafe10 (fix issues)
     // Listen to votes for host control panel (even though game screen doesn't display them)
     _votesSub =
         _firebaseService.getVotesStream(widget.room.code).listen((votes) {
@@ -372,14 +368,6 @@ class _GameScreenState extends State<GameScreen> {
         });
       }
     });
-<<<<<<< HEAD
-=======
-    // Note: Votes listener removed since voting display removed from game screen
-    // Host control panel has its own voting status display
-    // Individual vote results shown after reveal answer
->>>>>>> a68e6ec (fix chat display)
-=======
->>>>>>> 0aafe10 (fix issues)
   }
 
   @override
